@@ -138,9 +138,34 @@ O retorno vazio indica esgotamento. A operação é de leitura. O DTO contém ID
 
 **Testes.** `mvn -f backend/pom.xml test` executa os casos de limites, empates, revisões, esgotamento e campos serializados. Para verificar também a consulta real com PostgreSQL, configure as variáveis do backend para uma base de testes e rode `mvn -f backend/pom.xml -Dtest=SelecaoAdaptativaIT test`. O Spring aplica as migrations e a transação do teste desfaz as linhas de exemplo.
 
+## Sessões de estudo
+
+Rotas sob `/api/aluno/sessoes` usam JWT de perfil ALUNO. O servidor obtém o titular do token. Uma sessão de outro aluno recebe a mesma resposta 404 de uma sessão inexistente.
+
+| Método e caminho | Efeito |
+|---|---|
+| POST na coleção | `{"assuntoId":1}` escolhe assunto. `{}` solicita recomendação pelo menor nível pessoal entre assuntos com questões ativas, com desempate pelo menor ID. Retorna 201 com a primeira questão. |
+| GET na coleção | Lista resumos do titular, mais recentes primeiro. |
+| GET `/{id}` | Retorna `sessao` e `questaoAtual`, com as alternativas A–D. |
+| PUT `/{id}/questoes/{posicao}` | Solicita a próxima posição (1 a 10). Em uma sessão ativa, repetir uma posição já apresentada devolve o estado atual. |
+| PUT `/{id}/interromper` | Pausa e conserva a posição. |
+| PUT `/{id}/retomar` | Reativa a sessão na mesma questão. |
+| PUT `/{id}/encerrar` | Encerra definitivamente, inclusive se a sessão estiver pausada. |
+
+A V5 persiste a sessão e a sequência de IDs apresentados. Cada aluno tem até uma sessão aberta (ativa ou interrompida). Repetir o início para o mesmo assunto ou por recomendação devolve a sessão aberta com 200. Mudar de assunto exige encerrar a sessão anterior. Esgotamento, posição fora de sequência e operações incompatíveis com o estado retornam 409. O contador indica questões apresentadas. O avanço consulta o nível atual no servidor e não grava respostas, pontos ou acertos. As revisões por questão continuam sem calendário persistido nesta etapa.
+
+Para realizar testes com questões de demonstração, inicie com `SPRING_PROFILES_ACTIVE=dev bash scripts/iniciar.sh`. Em uma base PostgreSQL de teste com as variáveis do backend configuradas, execute `mvn -f backend/pom.xml -Dtest=SessaoEstudoIT test` para verificar autenticação, isolamento, concorrência, limite, interrupção e retomada.
+
+## Enviar uma resposta
+
+Use `PUT /api/aluno/sessoes/{id}/questoes/{questaoId}/resposta` com o JWT do aluno e um corpo como `{"alternativa":"B"}`. Use o ID de `questaoAtual` retornado pela sessão. O primeiro envio exige a questão atual de uma sessão ativa. O retorno HTTP 200 contém a alternativa enviada, o booleano `correta` e a `explicacao` cadastrada. A consulta da sessão inclui o campo opcional `feedback` somente quando o aluno já respondeu à questão atual naquela sessão.
+
+Reenviar a mesma letra recupera a correção gravada, inclusive após avançar ou encerrar. Tentar trocá-la retorna 409. Letras fora de A–D e opções indisponíveis retornam 400. Uma sessão de outro aluno ou uma questão que não foi apresentada nela retorna 404. A V6 mantém as respostas anteriores e garante uma resposta por questão em cada sessão.
+
+Na raiz do projeto, com PostgreSQL de teste preparado, rode `mvn -f backend/pom.xml -Dtest=SessaoEstudoIT test`. A suíte cobre envios simultâneos, isolamento por aluno, validação e recuperação do feedback.
+
 ## Próximos passos sugeridos
 
-- Implementar fluxo completo de resposta de questões
 - CRUD de atividades/questões (admin)
 - Scheduler para notificar revisões pendentes
 - Testes unitários das regras de negócio

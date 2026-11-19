@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
@@ -56,12 +57,6 @@ export default function AlunoDashboardPage() {
     },
   });
 
-  const handleIniciarAtividade = () => {
-    toast.info(
-      "Módulo de atividades adaptativas em breve! Prepare-se para ganhar mais XP."
-    );
-  };
-
   const primeiroNome = user?.nome?.split(" ")[0] || "Estudante";
 
   return (
@@ -114,11 +109,12 @@ export default function AlunoDashboardPage() {
 
               <Button
                 size="lg"
-                onClick={handleIniciarAtividade}
+                asChild
                 className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-200 gap-2.5 px-6"
               >
-                <Play className="h-5 w-5 fill-current" />
-                Fazer atividade
+                <Link href="/aluno/atividade">
+                  <Play className="h-5 w-5 fill-current" /> Fazer atividade
+                </Link>
               </Button>
             </div>
           </section>

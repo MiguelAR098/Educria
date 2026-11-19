@@ -27,6 +27,10 @@ public class RespostaAluno {
     @JoinColumn(name = "questao_id", nullable = false)
     private Questao questao;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sessao_id")
+    private SessaoEstudo sessao;
+
     @Column(name = "resposta_dada", length = 1)
     private String respostaDada;
 
