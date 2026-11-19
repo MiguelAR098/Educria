@@ -1,0 +1,39 @@
+package com.educria.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "respostas_aluno")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class RespostaAluno {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "aluno_id", nullable = false)
+    private Aluno aluno;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "questao_id", nullable = false)
+    private Questao questao;
+
+    @Column(name = "resposta_dada", length = 1)
+    private String respostaDada;
+
+    @Column(nullable = false)
+    private boolean correta;
+
+    @CreationTimestamp
+    @Column(name = "respondido_em", updatable = false)
+    private LocalDateTime respondidoEm;
+}

@@ -1,0 +1,18 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: educria
+      POSTGRES_USER: educria
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Execute bash scripts/iniciar.sh}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - dados:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U educria -d educria"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+volumes:
+  dados:

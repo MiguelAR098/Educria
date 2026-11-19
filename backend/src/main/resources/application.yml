@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: educria-backend
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:5432/educria}
+    username: educria
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: America/Sao_Paulo
+    show-sql: false
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    locations: classpath:db/migration
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: America/Sao_Paulo
+
+server:
+  address: 127.0.0.1
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# JWT
+educria:
+  jwt:
+    secret: ${EDUCRIA_JWT_SECRET}
+    expiration-ms: 86400000 # 24 horas
+
+logging:
+  level:
+    com.educria: DEBUG
+    org.springframework.security: INFO
