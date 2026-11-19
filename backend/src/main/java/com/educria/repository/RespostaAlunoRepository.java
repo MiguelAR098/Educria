@@ -11,7 +11,8 @@ import java.util.Optional;
 
 public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Long> {
     @Query("""
-            select new com.educria.dto.FeedbackResposta(r.respostaDada, r.correta, r.questao.explicacao)
+            select new com.educria.dto.FeedbackResposta(r.respostaDada, r.correta, r.questao.explicacao,
+                                                         r.nivelAnterior, r.nivelAtual)
             from RespostaAluno r where r.sessao.id = :sessao and r.questao.id = :questao
             """)
     Optional<FeedbackResposta> feedback(@Param("sessao") Long sessao, @Param("questao") Long questao);

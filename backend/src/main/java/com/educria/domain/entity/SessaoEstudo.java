@@ -37,19 +37,24 @@ public class SessaoEstudo {
     private Instant iniciadaEm;
     private Instant atualizadaEm;
 
+    @Getter
+    @Column(name = "revisoes_apresentadas", nullable = false)
+    private int revisoesApresentadas;
+
     @ElementCollection
     @CollectionTable(name = "sessao_questoes", joinColumns = @JoinColumn(name = "sessao_id"))
     @OrderColumn(name = "indice")
     @Column(name = "questao_id", nullable = false)
     private List<Long> apresentadas = new ArrayList<>();
 
-    public SessaoEstudo(Aluno aluno, Assunto assunto, Long primeiraQuestao) {
+    public SessaoEstudo(Aluno aluno, Assunto assunto, Long primeiraQuestao, boolean revisao) {
         this.aluno = aluno;
         this.assunto = assunto;
         situacao = SituacaoSessao.ATIVA;
         iniciadaEm = Instant.now().truncatedTo(ChronoUnit.MICROS);
         atualizadaEm = iniciadaEm;
         apresentadas.add(primeiraQuestao);
+        revisoesApresentadas = revisao ? 1 : 0;
     }
 
     public ResumoSessao resumo() {
@@ -71,11 +76,12 @@ public class SessaoEstudo {
         return posicao == apresentadas.size() + 1;
     }
 
-    public void apresentar(Long questaoId) {
+    public void apresentar(Long questaoId, boolean revisao) {
         if (situacao != SituacaoSessao.ATIVA || apresentadas.size() >= LIMITE || apresentadas.contains(questaoId)) {
             throw conflito("Não é possível apresentar esta questão");
         }
         apresentadas.add(questaoId);
+        if (revisao) revisoesApresentadas++;
         atualizadaEm = Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 

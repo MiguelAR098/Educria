@@ -21,18 +21,20 @@ git push
 
 Se o repositório já mostra `.devcontainer/`, `backend/`, `frontend/` e `compose.yaml` na página principal, basta abrir um Codespace novo nesse repositório e seguir o passo 2.
 
-## Atualizar um Codespace que já exibe “Origem não permitida”
+## Atualizar um Codespace já existente
 
-1. Pressione **Ctrl+C** no terminal que está rodando o projeto.
-2. Envie a versão corrigida de `educria-codespaces.zip` para a pasta principal do **mesmo Codespace**. Se o arquivo antigo estiver lá, confirme a substituição.
-3. Execute o bloco abaixo na pasta principal. Ele atualiza o frontend, o verificador e os guias. A pasta do banco e o arquivo `.env` ficam preservados.
+1. No terminal que executa o projeto, pressione **Ctrl+C**. Guarde suas alterações locais caso tenha editado o código.
+2. Envie o ZIP completo atualizado para a raiz do mesmo Codespace, com o nome `educria-codespaces.zip`. Substitua o ZIP antigo.
+3. Na raiz, extraia o backend e o frontend juntos e reconstrua a aplicação com as questões de demonstração.
 
 ```bash
-unzip -o educria-codespaces.zip 'frontend/lib/api.ts' 'frontend/app/api/*' scripts/verificar.mjs INICIAR-CODESPACES.md ALTERACOES.md
-bash scripts/iniciar.sh
+unzip -o educria-codespaces.zip
+SPRING_PROFILES_ACTIVE=dev bash scripts/iniciar.sh
 ```
 
-Quando aparecer `Ready`, abra a porta **3000** pelo globo e recarregue a página com **Ctrl+Shift+R**. No primeiro cadastro, deixe **ID da Turma** em branco, a menos que já exista uma turma com o número informado.
+Quando aparecer **Ready**, abra a porta **3000** e recarregue a página com **Ctrl+Shift+R**. A atualização preserva o volume do PostgreSQL e o arquivo `.env`.
+
+No topo do painel de aluno, abra **Histórico de sessões**. Para testar uma resposta, clique em **Fazer atividade**, escolha um assunto, inicie a sessão, marque A–D e clique em **Enviar resposta**. A correção aparece na mesma questão. **Próxima questão** avança depois da correção. Ao encerrar, abra **Suas respostas** no resultado para conferir cada questão e a alternativa enviada. Sessões de versões que apenas apresentavam questões podem ter itens sem resposta registrada.
 
 ## 2. Iniciar o EDUCRIA
 

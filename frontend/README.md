@@ -12,4 +12,8 @@ Siga o [guia de inicialização no Codespaces](../INICIAR-CODESPACES.md). O fron
 2. No painel, clique em **Fazer atividade**. Escolha um assunto ou mantenha **Recomendação automática** e clique em **Iniciar sessão**.
 3. Marque uma das alternativas A–D. Clique em **Enviar resposta** para receber a correção e a explicação. Use **Próxima questão** para avançar. Se recarregar a página, o feedback da questão respondida continua disponível.
 4. Use **Pausar e sair**. Para voltar à mesma questão, abra **Fazer atividade → Abrir sessão → Retomar sessão**.
-5. Ao chegar à décima questão ou esgotar o assunto, use **Encerrar sessão** para voltar ao painel.
+5. Ao chegar à décima questão ou esgotar o assunto, use **Encerrar sessão** para abrir o resultado.
+
+No painel do aluno, abra **Minhas revisões** para consultar as questões pendentes e futuras. Ao iniciar uma atividade no assunto, a sessão prioriza questões com revisão vencida.
+
+No topo do painel, abra **Histórico de sessões** e escolha uma sessão para consultar o resultado completo ou parcial, comparar com a anterior e ver as datas de revisão na agenda atual. Em **Suas respostas**, confira o enunciado, a letra enviada e a indicação de acerto ou erro de cada questão.

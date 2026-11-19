@@ -1,10 +1,12 @@
 package com.educria.controller;
 
+import com.educria.dto.AgendaRevisoes;
 import com.educria.dto.AssuntoDoAluno;
 import com.educria.dto.DesempenhoResponse;
 import com.educria.dto.MateriaResumo;
 import com.educria.dto.PontuacaoColetivaResponse;
 import com.educria.service.AlunoService;
+import com.educria.service.AgendaRevisoesService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,10 +23,17 @@ public class AlunoController {
     private final AlunoService alunoService;
     private final com.educria.repository.AlunoRepository alunoRepository;
 
+    private final AgendaRevisoesService revisoes;
+
     private Long getAlunoId(UserDetails userDetails) {
         return alunoRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow()
                 .getId();
+    }
+
+    @GetMapping("/revisoes")
+    public AgendaRevisoes revisoes(@AuthenticationPrincipal UserDetails usuario) {
+        return revisoes.listar(getAlunoId(usuario));
     }
 
     @GetMapping("/materias")

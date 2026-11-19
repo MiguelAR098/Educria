@@ -41,6 +41,11 @@ public class DesempenhoPorAssunto {
     @Column(nullable = false)
     private long versao;
 
+    public DesempenhoPorAssunto(Aluno aluno, Assunto assunto) {
+        this.aluno = aluno;
+        this.assunto = assunto;
+    }
+
     public void registrarResposta(boolean acertou) {
         NivelAdaptativo proximo = new NivelAdaptativo(nivelAtual, errosConsecutivos).aposResposta(acertou);
         nivelAtual = proximo.nivel();

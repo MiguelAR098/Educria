@@ -26,7 +26,7 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
   return (
     <div className="space-y-4">
       <fieldset disabled={bloqueadas || !!feedback} className="space-y-2.5">
-        <legend className="mb-3 text-sm text-slate-600">{feedback ? "Sua alternativa" : "Escolha uma alternativa."}</legend>
+        <legend className="mb-3 text-sm text-slate-600">{feedback ? "Sua alternativa" : "Escolha uma alternativa e clique em Enviar resposta para ver a correção."}</legend>
         {(["A", "B", "C", "D"] as const).map((letra) => {
           const texto = questao[`alternativa${letra}`];
           return (
@@ -44,6 +44,9 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
       {feedback ? (
         <div role="status" className="space-y-1 rounded-xl bg-indigo-50 p-4 text-slate-800">
           <p className="font-semibold">{feedback.correta ? "Você acertou!" : "Resposta incorreta."}</p>
+          {feedback.nivelAnterior != null && feedback.nivelAtual != null && (
+            <p>Nível neste assunto: {feedback.nivelAnterior} → {feedback.nivelAtual}</p>
+          )}
           {feedback.explicacao && <p>{feedback.explicacao}</p>}
         </div>
       ) : (
@@ -77,7 +80,8 @@ export default function QuestaoDaSessao() {
       await cache.cancelQueries({ queryKey: chave });
       cache.setQueryData(chave, estado);
       void cache.invalidateQueries({ queryKey: ["sessoes", aluno] });
-      if (caminho === "interromper" || caminho === "encerrar") router.replace("/aluno");
+      if (caminho === "interromper") router.replace("/aluno");
+      if (caminho === "encerrar") router.replace(`/aluno/historico/${id}`);
     },
     onError: () => { void consulta.refetch(); },
   });
@@ -89,6 +93,9 @@ export default function QuestaoDaSessao() {
       await cache.cancelQueries({ queryKey: chave });
       cache.setQueryData<EstadoSessao>(chave, (estado) =>
         estado?.questaoAtual?.id === questaoId ? { ...estado, feedback } : estado);
+      void cache.invalidateQueries({ queryKey: ["catalogo", "assuntos", aluno] });
+      void cache.invalidateQueries({ queryKey: ["assuntos-de-estudo", aluno] });
+      void cache.invalidateQueries({ queryKey: ["revisoes", aluno] });
     },
     onError: () => { void consulta.refetch(); },
   });
@@ -135,7 +142,7 @@ export default function QuestaoDaSessao() {
         <CardContent className="space-y-5">
           {erro && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{mensagemErro(erro)}</p>}
           {sessao.situacao === "ENCERRADA" ? (
-            <><p>Sessão encerrada.</p><Voltar /></>
+            <><p>Sessão encerrada.</p><Button asChild><Link href={`/aluno/historico/${id}`}>Ver resultado</Link></Button></>
           ) : sessao.situacao === "INTERROMPIDA" ? (
             <><p>Sessão pausada. Sua posição está salva.</p>
               <div className="flex flex-wrap gap-2"><Button disabled={bloqueada} onClick={() => acao.mutate("retomar")}>

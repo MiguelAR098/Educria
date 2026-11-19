@@ -14,7 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
+import java.util.HashMap;
+import java.time.Clock;
 import java.util.Set;
 
 @Service
@@ -27,6 +28,12 @@ public class SessaoEstudoService {
     private final SelecaoAdaptativaService selecao;
 
     private final RespostaAlunoRepository respostas;
+
+    private final Clock relogio;
+    private final AgendaRevisoesService agenda;
+    private final RepeticaoEspacadaRepository repeticoes;
+
+    private record Escolha(QuestaoParaAluno questao, boolean revisao) {}
 
     public record Inicio(EstadoSessao estado, boolean criada) {}
 
@@ -42,15 +49,16 @@ public class SessaoEstudoService {
             return new Inicio(estado(sessao), false);
         }
 
+        var hoje = LocalDate.now(relogio);
         Assunto assunto = assuntoId == null
-                ? assuntos.recomendar(aluno.getId(), PageRequest.of(0, 1)).stream().findFirst()
+                ? assuntos.recomendar(aluno.getId(), hoje, PageRequest.of(0, 1)).stream().findFirst()
                     .orElseThrow(SessaoEstudoService::semQuestoes)
                 : assuntos.findById(assuntoId)
                     .orElseThrow(() -> new ApiException("Assunto não encontrado", HttpStatus.NOT_FOUND));
 
-        var primeira = selecionar(aluno, assunto.getId(), Set.of());
-        var sessao = sessoes.save(new SessaoEstudo(aluno, assunto, primeira.id()));
-        return new Inicio(new EstadoSessao(sessao.resumo(), primeira), true);
+        var primeira = selecionar(aluno, assunto.getId(), Set.of(), 0, hoje);
+        var sessao = sessoes.save(new SessaoEstudo(aluno, assunto, primeira.questao().id(), primeira.revisao()));
+        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao()), true);
     }
 
     @Transactional(readOnly = true)
@@ -76,9 +84,10 @@ public class SessaoEstudoService {
         Aluno aluno = bloquearAluno(email);
         var sessao = buscar(email, id);
         if (!sessao.precisaApresentar(posicao)) return estado(sessao);
-        var proxima = selecionar(aluno, sessao.getAssunto().getId(), sessao.usadas());
-        sessao.apresentar(proxima.id());
-        return new EstadoSessao(sessao.resumo(), proxima);
+        var proxima = selecionar(aluno, sessao.getAssunto().getId(), sessao.usadas(),
+                sessao.getRevisoesApresentadas(), LocalDate.now(relogio));
+        sessao.apresentar(proxima.questao().id(), proxima.revisao());
+        return new EstadoSessao(sessao.resumo(), proxima.questao());
     }
 
     @Transactional
@@ -110,9 +119,19 @@ public class SessaoEstudoService {
             throw new ApiException("Alternativa indisponível", HttpStatus.BAD_REQUEST);
         }
         boolean correta = questao.isRespostaCorreta(alternativa);
+        Assunto assunto = sessao.getAssunto();
+        var desempenho = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assunto.getId())
+                .orElseGet(() -> new DesempenhoPorAssunto(aluno, assunto));
+        int nivelAnterior = desempenho.getNivelAtual();
+        desempenho.registrarResposta(correta);
+        desempenhos.save(desempenho);
+        int nivelAtual = desempenho.getNivelAtual();
+
         respostas.save(RespostaAluno.builder().aluno(aluno).sessao(sessao).questao(questao)
-                .respostaDada(alternativa).correta(correta).build());
-        return new FeedbackResposta(alternativa, correta, questao.getExplicacao());
+                .respostaDada(alternativa).correta(correta)
+                .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).build());
+        agenda.registrar(aluno, questao, correta);
+        return new FeedbackResposta(alternativa, correta, questao.getExplicacao(), nivelAnterior, nivelAtual);
     }
 
     private Aluno bloquearAluno(String email) {
@@ -133,12 +152,16 @@ public class SessaoEstudoService {
                 respostas.feedback(resumo.id(), questaoId).orElse(null));
     }
 
-    private QuestaoParaAluno selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas) {
+    private Escolha selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas, int revisoesUsadas, LocalDate hoje) {
         int nivel = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assuntoId)
                 .map(DesempenhoPorAssunto::getNivelAtual).orElse(NivelAdaptativo.MINIMO);
-        // O modelo atual agenda revisões por atividade, sem calendário individual por questão.
-        var contexto = new SelecaoAdaptativaService.Contexto(usadas, Map.of(), 0, LocalDate.now());
-        return selecao.selecionar(assuntoId, nivel, contexto).orElseThrow(SessaoEstudoService::semQuestoes);
+        var datas = new HashMap<Long, LocalDate>();
+        for (var item : repeticoes.datasPorAssunto(aluno.getId(), assuntoId)) {
+            datas.put(item.getQuestaoId(), item.getData());
+        }
+        var contexto = new SelecaoAdaptativaService.Contexto(usadas, datas, revisoesUsadas, hoje);
+        var questao = selecao.selecionar(assuntoId, nivel, contexto).orElseThrow(SessaoEstudoService::semQuestoes);
+        return new Escolha(questao, datas.containsKey(questao.id()));
     }
 
     private static ApiException semQuestoes() {

@@ -26,6 +26,8 @@ export interface QuestaoAtual {
 export type Alternativa = "A" | "B" | "C" | "D";
 
 export interface FeedbackResposta {
+  nivelAnterior?: number;
+  nivelAtual?: number;
   alternativa: Alternativa;
   correta: boolean;
   explicacao: string | null;

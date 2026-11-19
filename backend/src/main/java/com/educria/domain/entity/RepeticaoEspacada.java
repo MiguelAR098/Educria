@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Controle de repetição espaçada por aluno + atividade.
+ * Controle de repetição espaçada por aluno e questão. Registros legados preservam a atividade.
  * Progressão forçada: 1d → 3d → 7d → 16d → 35d → 70d no acerto.
  * No erro: volta para 1 dia.
  */
@@ -32,8 +32,12 @@ public class RepeticaoEspacada {
     private Aluno aluno;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "atividade_id", nullable = false)
+    @JoinColumn(name = "atividade_id")
     private Atividade atividade;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "questao_id")
+    private Questao questao;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "intervalo_atual", nullable = false, length = 10)
@@ -52,16 +56,22 @@ public class RepeticaoEspacada {
 
     // ===================== REGRAS DE NEGÓCIO =====================
 
+    public void registrarResposta(boolean correta, LocalDate hoje) {
+        agendar(correta && ultimaRevisao != null ? intervaloAtual.proximo() : IntervaloRepeticao.D1, hoje);
+    }
+
     public void registrarAcerto() {
-        this.intervaloAtual = this.intervaloAtual.proximo();
-        this.ultimaRevisao = LocalDate.now();
-        this.proximaRevisao = LocalDate.now().plusDays(this.intervaloAtual.getDias());
+        agendar(intervaloAtual.proximo(), LocalDate.now());
     }
 
     public void registrarErro() {
-        this.intervaloAtual = IntervaloRepeticao.doPrimeiro(); // volta para 1 dia
-        this.ultimaRevisao = LocalDate.now();
-        this.proximaRevisao = LocalDate.now().plusDays(1);
+        agendar(IntervaloRepeticao.D1, LocalDate.now());
+    }
+
+    private void agendar(IntervaloRepeticao intervalo, LocalDate hoje) {
+        intervaloAtual = intervalo;
+        ultimaRevisao = hoje;
+        proximaRevisao = hoje.plusDays(intervalo.getDias());
     }
 
     public boolean isPendente() {

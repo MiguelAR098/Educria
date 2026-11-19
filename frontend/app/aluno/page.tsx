@@ -83,7 +83,9 @@ export default function AlunoDashboardPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button asChild variant="outline"><Link href="/aluno/historico">Histórico de sessões</Link></Button>
+              <Button asChild variant="outline"><Link href="/aluno/revisoes">Minhas revisões</Link></Button>
               <Button
                 variant="outline"
                 size="icon"
