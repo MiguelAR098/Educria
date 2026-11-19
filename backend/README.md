@@ -124,6 +124,20 @@ O dashboard em `/aluno` consulta duas rotas privadas com o JWT de perfil ALUNO:
 
 Matemática mostra os oito níveis individuais, inclusive em uma base sem as questões de demonstração. A V4 cadastra Português e Ciências. Matérias sem assuntos aparecem como indisponíveis. Para verificar as rotas e a exigência de autenticação após iniciar a aplicação, rode `node scripts/verificar.mjs` na raiz.
 
+## Seleção adaptativa de questões
+
+O serviço Java `SelecaoAdaptativaService.selecionar(assuntoId, nivel, contexto)` retorna um `Optional<QuestaoParaAluno>`. O chamador informa o assunto escolhido, o nível atual de 1 a 10 e o contexto deste aluno:
+
+- `usadas` reúne os IDs das questões já apresentadas nesta sequência.
+- `proximasRevisoes` associa cada questão já vista à data da próxima revisão. Questões ausentes do mapa são tratadas como novas. A tabela de repetição existente agenda atividades inteiras, por isso essa seleção recebe explicitamente o calendário por questão.
+- `revisoesUsadas` conta as questões de revisão já apresentadas na sequência. `hoje` é a data de referência para verificar o vencimento.
+
+Só participam questões classificadas, do assunto escolhido e de atividades ativas. Questões já usadas e revisões futuras ficam de fora. Até três revisões podem ser escolhidas por sequência. Dentro desse limite, uma revisão devida hoje ou antes tem prioridade sobre uma questão nova. Dentro de cada grupo, a seleção procura a dificuldade mais próxima do nível. Empates favorecem primeiro a dificuldade menor e depois o menor ID.
+
+O retorno vazio indica esgotamento. A operação é de leitura. O DTO contém ID, assunto, dificuldade, enunciado e as quatro alternativas na ordem original. O repositório projeta diretamente esses campos, sem carregar gabarito ou explicação.
+
+**Testes.** `mvn -f backend/pom.xml test` executa os casos de limites, empates, revisões, esgotamento e campos serializados. Para verificar também a consulta real com PostgreSQL, configure as variáveis do backend para uma base de testes e rode `mvn -f backend/pom.xml -Dtest=SelecaoAdaptativaIT test`. O Spring aplica as migrations e a transação do teste desfaz as linhas de exemplo.
+
 ## Próximos passos sugeridos
 
 - Implementar fluxo completo de resposta de questões
