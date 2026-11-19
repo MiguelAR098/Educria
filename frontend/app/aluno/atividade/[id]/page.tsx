@@ -78,6 +78,8 @@ export default function QuestaoDaSessao() {
     mutationFn: async (caminho: string) => (await api.put<EstadoSessao>(`${rota}/${caminho}`)).data,
     onSuccess: async (estado, caminho) => {
       await cache.cancelQueries({ queryKey: chave });
+      void cache.invalidateQueries({ queryKey: ["historico-sessoes", aluno] });
+      void cache.invalidateQueries({ queryKey: ["resultado-sessao", aluno, id] });
       cache.setQueryData(chave, estado);
       void cache.invalidateQueries({ queryKey: ["sessoes", aluno] });
       if (caminho === "interromper") router.replace("/aluno");
@@ -93,6 +95,8 @@ export default function QuestaoDaSessao() {
       await cache.cancelQueries({ queryKey: chave });
       cache.setQueryData<EstadoSessao>(chave, (estado) =>
         estado?.questaoAtual?.id === questaoId ? { ...estado, feedback } : estado);
+      void cache.invalidateQueries({ queryKey: ["historico-sessoes", aluno] });
+      void cache.invalidateQueries({ queryKey: ["resultado-sessao", aluno, id] });
       void cache.invalidateQueries({ queryKey: ["catalogo", "assuntos", aluno] });
       void cache.invalidateQueries({ queryKey: ["assuntos-de-estudo", aluno] });
       void cache.invalidateQueries({ queryKey: ["revisoes", aluno] });

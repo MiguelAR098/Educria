@@ -1,33 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { api } from "@/lib/api";
-import { useChaveAluno } from "@/lib/estudo";
-
-interface Revisao {
-  questaoId: number;
-  enunciado: string;
-  assunto: string;
-  proximaRevisao: string;
-  intervaloDias: number;
-}
-
-interface Agenda {
-  hoje: string;
-  proximaVirada: string;
-  pendentes: Revisao[];
-  futuras: Revisao[];
-}
-
-function dataBrasileira(data: string) {
-  return data.split("-").reverse().join("/");
-}
+import { dataBrasileira, Revisao, useAgenda } from "@/lib/revisoes";
 
 function Grupo({ titulo, itens, vazio }: { titulo: string; itens: Revisao[]; vazio: string }) {
   return (
@@ -54,17 +33,7 @@ function Grupo({ titulo, itens, vazio }: { titulo: string; itens: Revisao[]; vaz
 }
 
 function AgendaDoAluno() {
-  const aluno = useChaveAluno();
-  const consulta = useQuery({
-    queryKey: ["revisoes", aluno],
-    queryFn: async ({ signal }) => (await api.get<Agenda>("/api/aluno/revisoes", { signal })).data,
-    staleTime: 0,
-    refetchInterval: ({ state }) => {
-      if (!state.data) return false;
-      const restante = Date.parse(state.data.proximaVirada) - Date.now();
-      return restante > 0 ? restante + 100 : 60_000;
-    },
-  });
+  const consulta = useAgenda();
   return (
     <main className="mx-auto max-w-3xl space-y-5 px-4 py-6 sm:py-10">
       <Link href="/aluno" className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-700">

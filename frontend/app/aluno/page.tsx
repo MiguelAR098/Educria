@@ -1,185 +1,116 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/auth-store";
-import { DesempenhoAluno, PontosTurma } from "@/lib/types";
+import { CalendarDays, CheckCheck, ChevronRight, Clock3, History, Play, RefreshCw } from "lucide-react";
+import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
 import { CatalogoMaterias } from "@/components/CatalogoMaterias";
 import { LevelCard } from "@/components/LevelCard";
 import { CollectivePointsCard } from "@/components/CollectivePointsCard";
+import { EstadoConsulta } from "@/components/EstadoConsulta";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Play,
-  Sparkles,
-  BookOpen,
-  Compass,
-  RefreshCw,
-} from "lucide-react";
-import { toast } from "sonner";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
+import { useChaveAluno } from "@/lib/estudo";
+import { inicio, situacoes, useHistorico } from "@/lib/historico";
+import { dataBrasileira, useAgenda } from "@/lib/revisoes";
+import type { DesempenhoAluno, PontosTurma } from "@/lib/types";
+
+function Painel() {
+  const aluno = useChaveAluno();
+  const nome = useAuthStore((s) => s.user?.nome.split(" ")[0]);
+  const cache = useQueryClient();
+  const atualizando = useIsFetching() > 0;
+  const nivel = useQuery({
+    queryKey: ["aluno-desempenho", aluno],
+    queryFn: async ({ signal }) => (await api.get<DesempenhoAluno>("/api/aluno/desempenho", { signal })).data,
+  });
+  const turma = useQuery({
+    queryKey: ["aluno-turma-pontos", aluno],
+    queryFn: async ({ signal }) => (await api.get<PontosTurma>("/api/aluno/turma/pontos", { signal })).data,
+  });
+  const agenda = useAgenda();
+  const historico = useHistorico();
+  const recentes = historico.data?.pages[0].sessoes.slice(0, 3);
+  return (
+    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 pb-12 pt-6 sm:px-6 sm:pt-9">
+      <header className="rounded-[1.25rem] border border-indigo-100 bg-white px-5 py-5 shadow-sm sm:px-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="break-words text-3xl font-extrabold tracking-tight text-slate-900">Olá, {nome || "estudante"}!</h1>
+            <p className="mt-1 text-sm text-slate-600">Pronto para a próxima atividade?</p>
+          </div>
+          <Button asChild size="lg" className="gap-2 rounded-xl bg-gradient-to-r from-indigo-700 to-violet-600 text-white shadow-md shadow-indigo-200 hover:brightness-110">
+            <Link href="/aluno/atividade"><Play aria-hidden size={16} fill="currentColor" /> Fazer atividade</Link>
+          </Button>
+        </div>
+        <nav aria-label="Atalhos do aluno" className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-sm font-semibold">
+          <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/revisoes"><CalendarDays aria-hidden size={16} /> Minhas revisões</Link>
+          <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/historico"><History aria-hidden size={16} /> Histórico de sessões</Link>
+          <button type="button" aria-label="Atualizar dados" title="Atualizar dados" disabled={atualizando} onClick={() => cache.refetchQueries({ type: "active" })}
+            className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-indigo-50 disabled:opacity-60">
+            <RefreshCw aria-hidden size={16} className={atualizando ? "motion-safe:animate-spin" : ""} />
+          </button>
+        </nav>
+      </header>
+
+      <div className="grid gap-4 md:grid-cols-[1.58fr_1fr]">
+        <div className="min-w-0"><EstadoConsulta consulta={nivel} recurso="o nível global" />
+          {nivel.data && <LevelCard desempenho={nivel.data} />}</div>
+        <div className="min-w-0"><EstadoConsulta consulta={turma} recurso="os pontos da turma" />
+          {turma.data && <CollectivePointsCard pontosTurma={turma.data} />}</div>
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="overflow-hidden rounded-[1.25rem]">
+          <CardHeader className="flex-row items-center gap-3 space-y-0 p-5 pb-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 text-emerald-800"><CalendarDays aria-hidden size={20} /></span>
+            <CardTitle className="text-lg">Revisões pendentes</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 px-5 pb-5 text-sm">
+            <EstadoConsulta consulta={agenda} recurso="as revisões" />
+            {agenda.data && <>
+              <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-3 font-semibold text-emerald-900">
+                {agenda.data.pendentes.length === 0 && <CheckCheck aria-hidden size={17} />}
+                {agenda.data.pendentes.length === 0 ? "Você está em dia com as revisões."
+                : `Para revisar hoje: ${agenda.data.pendentes.length}`}</p>
+              {!!agenda.data.pendentes.length && <ul className="divide-y divide-slate-100">{agenda.data.pendentes.slice(0, 3).map((r) => (
+                <li key={r.questaoId} className="break-words py-2"><strong className="capitalize">{r.assunto}</strong> · {r.enunciado}</li>
+              ))}</ul>}
+              {agenda.data.futuras[0] && <p className="text-sm text-slate-600">
+                Próxima revisão agendada para {dataBrasileira(agenda.data.futuras[0].proximaRevisao)}.
+              </p>}
+            </>}
+          </CardContent>
+        </Card>
+        <Card className="overflow-hidden rounded-[1.25rem]">
+          <CardHeader className="flex-row items-center gap-3 space-y-0 p-5 pb-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-100 text-indigo-700"><Clock3 aria-hidden size={20} /></span>
+            <CardTitle className="text-lg">Sessões recentes</CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 pb-5">
+            <EstadoConsulta consulta={historico} recurso="o histórico" />
+            {recentes?.length === 0 && <p className="rounded-xl bg-slate-50 px-3 py-3 text-sm text-slate-600">Você ainda não iniciou uma sessão.</p>}
+            <ul className="divide-y divide-slate-100">{recentes?.map((s) => (
+              <li key={s.id}><Link href={`/aluno/historico/${s.id}`} className="group flex items-center justify-between gap-2 rounded-lg py-2 hover:bg-indigo-50/60">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-sm"><strong className="capitalize text-slate-900">{s.assunto}</strong>
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800">{situacoes[s.situacao]}</span></p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{inicio(s)} · Acertos: {s.acertos} · Erros: {s.erros}</p>
+                </div><ChevronRight aria-hidden size={16} className="shrink-0 text-indigo-600" />
+              </Link></li>
+            ))}</ul>
+          </CardContent>
+        </Card>
+      </div>
+      <CatalogoMaterias />
+    </main>
+  );
+}
 
 export default function AlunoDashboardPage() {
-  const { user, token, _hasHydrated } = useAuthStore();
-  const queryClient = useQueryClient();
-  const alunoAtivo = _hasHydrated && !!token && user?.role === "ALUNO";
-
-  const desempenhoQuery = useQuery<DesempenhoAluno>({
-    queryKey: ["aluno-desempenho", user?.id ?? user?.email],
-    enabled: alunoAtivo,
-    queryFn: async () => {
-      const { data } = await api.get<DesempenhoAluno>("/api/aluno/desempenho");
-      return data;
-    },
-  });
-
-  const pontosTurmaQuery = useQuery<PontosTurma>({
-    queryKey: ["aluno-turma-pontos", user?.id ?? user?.email],
-    enabled: alunoAtivo,
-    queryFn: async () => {
-      try {
-        const { data } = await api.get<PontosTurma>("/api/aluno/turma/pontos");
-        return data;
-      } catch (error: any) {
-        if (error?.response?.status === 400) {
-          return {
-            turmaId: null,
-            nomeTurma: "Sem turma vinculada",
-            pontosTotais: 0,
-            metaTurma: 1000,
-          };
-        }
-        throw error;
-      }
-    },
-  });
-
-  const primeiroNome = user?.nome?.split(" ")[0] || "Estudante";
-
-  return (
-    <AuthGuard allowedRole="ALUNO">
-      <div className="min-h-screen bg-slate-50 flex flex-col">
-        <Navbar />
-
-        <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 space-y-8">
-          {/* Saudação e CTA Principal */}
-          <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="gap-1">
-                  <Compass className="h-3.5 w-3.5" />
-                  Ensino Fundamental II
-                </Badge>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-                Olá, {primeiroNome}! Pronto para evoluir?
-              </h1>
-              <p className="text-sm text-slate-500">
-                Acompanhe seu nível, conquiste medalhas e ajude sua turma a
-                subir no placar.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Button asChild variant="outline"><Link href="/aluno/historico">Histórico de sessões</Link></Button>
-              <Button asChild variant="outline"><Link href="/aluno/revisoes">Minhas revisões</Link></Button>
-              <Button
-                variant="outline"
-                size="icon"
-                title="Atualizar dados"
-                onClick={() => {
-                  desempenhoQuery.refetch();
-                  pontosTurmaQuery.refetch();
-                  void queryClient.invalidateQueries({ queryKey: ["catalogo"] });
-                  toast.success("Dados atualizados!");
-                }}
-                disabled={
-                  desempenhoQuery.isFetching || pontosTurmaQuery.isFetching
-                }
-              >
-                <RefreshCw
-                  className={`h-4 w-4 ${
-                    desempenhoQuery.isFetching || pontosTurmaQuery.isFetching
-                      ? "animate-spin text-indigo-600"
-                      : ""
-                  }`}
-                />
-              </Button>
-
-              <Button
-                size="lg"
-                asChild
-                className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white shadow-md shadow-indigo-200 gap-2.5 px-6"
-              >
-                <Link href="/aluno/atividade">
-                  <Play className="h-5 w-5 fill-current" /> Fazer atividade
-                </Link>
-              </Button>
-            </div>
-          </section>
-
-          {/* Alerta amigável caso backend não esteja respondendo */}
-          {(desempenhoQuery.isError || pontosTurmaQuery.isError) && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 flex items-center justify-between gap-4">
-              <span>
-                Não foi possível carregar alguns dados do servidor.
-                Verifique se a API está ativa.
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  desempenhoQuery.refetch();
-                  pontosTurmaQuery.refetch();
-                }}
-              >
-                Tentar novamente
-              </Button>
-            </div>
-          )}
-
-          {/* Grid Principal: Nível + Pontos Coletivos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <LevelCard
-                desempenho={desempenhoQuery.data}
-                isLoading={desempenhoQuery.isLoading}
-              />
-            </div>
-
-            <div className="lg:col-span-1 flex flex-col gap-6">
-              <CollectivePointsCard
-                pontosTurma={pontosTurmaQuery.data}
-                isLoading={pontosTurmaQuery.isLoading}
-              />
-
-              {/* Card Motivacional Extra */}
-              <Card className="border-emerald-200/80 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md">
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold">
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Desafio Diário
-                    </span>
-                    <BookOpen className="h-5 w-5 text-emerald-100" />
-                  </div>
-                  <h3 className="text-lg font-bold leading-snug">
-                    Trilha Adaptativa Personalizada
-                  </h3>
-                  <p className="text-xs text-emerald-50 leading-relaxed">
-                    As questões se ajustam ao seu ritmo! Quanto mais você
-                    pratica, mais rápido desbloqueia novos níveis.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-          <CatalogoMaterias />
-        </main>
-      </div>
-    </AuthGuard>
-  );
+  return <AuthGuard allowedRole="ALUNO"><div className="min-h-screen bg-gradient-to-b from-indigo-50/70 via-slate-50 to-slate-50">
+    <Navbar /><Painel />
+  </div></AuthGuard>;
 }

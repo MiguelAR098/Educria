@@ -3,24 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, BookOpen } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
-import { EstadoSessao, limiteQuestoes, mensagemErro, ResumoSessao, rotaSessoes, semQuestoes,
-  useAssuntosDeEstudo, useChaveAluno } from "@/lib/estudo";
+import { EstadoSessao, limiteQuestoes, mensagemErro, rotaSessoes, semQuestoes,
+  useAssuntosDeEstudo, useChaveAluno, useSessoes } from "@/lib/estudo";
 
 export default function PrepararAtividade() {
+  const cache = useQueryClient();
   const router = useRouter();
   const aluno = useChaveAluno();
   const assuntos = useAssuntosDeEstudo();
   const [escolha, setEscolha] = useState("auto");
-  const sessoes = useQuery({
-    queryKey: ["sessoes", aluno],
-    staleTime: 0,
-    queryFn: async () => (await api.get<ResumoSessao[]>(rotaSessoes)).data,
-  });
+  const sessoes = useSessoes();
   const aberta = sessoes.data?.find((s) => s.situacao !== "ENCERRADA");
   const nomeAssunto = assuntos.data?.find((assunto) => assunto.id === aberta?.assuntoId)?.nome;
   const iniciar = useMutation({
@@ -28,7 +25,11 @@ export default function PrepararAtividade() {
       const pedido = escolha === "auto" ? {} : { assuntoId: Number(escolha) };
       return (await api.post<EstadoSessao>(rotaSessoes, pedido)).data;
     },
-    onSuccess: (estado) => router.push(`/aluno/atividade/${estado.sessao.id}`),
+    onSuccess: (estado) => {
+      void cache.invalidateQueries({ queryKey: ["historico-sessoes", aluno] });
+      void cache.invalidateQueries({ queryKey: ["sessoes", aluno] });
+      router.push(`/aluno/atividade/${estado.sessao.id}`);
+    },
     onError: () => { void sessoes.refetch(); },
   });
 

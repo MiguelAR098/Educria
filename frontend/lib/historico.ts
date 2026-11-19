@@ -1,4 +1,6 @@
-import type { ResumoSessao } from "./estudo";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { api } from "./api";
+import { rotaSessoes, useChaveAluno, type ResumoSessao } from "./estudo";
 
 export interface Indicadores {
   id: number;
@@ -30,4 +32,17 @@ const formato = new Intl.DateTimeFormat("pt-BR", {
 });
 export function inicio(sessao: Indicadores) {
   return formato.format(new Date(sessao.iniciadaEm));
+}
+
+export function useHistorico() {
+  const aluno = useChaveAluno();
+  return useInfiniteQuery({
+    queryKey: ["historico-sessoes", aluno],
+    initialPageParam: null as number | null,
+    queryFn: async ({ pageParam, signal }) => (await api.get<Historico>(`${rotaSessoes}/historico`, {
+      params: { antesDe: pageParam }, signal,
+    })).data,
+    getNextPageParam: (pagina) => pagina.proximoCursor,
+    staleTime: 0,
+  });
 }

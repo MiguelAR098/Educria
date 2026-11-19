@@ -1,25 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { api } from "@/lib/api";
-import { rotaSessoes, useChaveAluno } from "@/lib/estudo";
-import { Historico, inicio, situacoes } from "@/lib/historico";
+import { useHistorico, inicio, situacoes } from "@/lib/historico";
 
 export default function HistoricoPage() {
-  const aluno = useChaveAluno();
-  const consulta = useInfiniteQuery({
-    queryKey: ["historico-sessoes", aluno],
-    initialPageParam: null as number | null,
-    queryFn: async ({ pageParam, signal }) => (await api.get<Historico>(`${rotaSessoes}/historico`, {
-      params: { antesDe: pageParam }, signal,
-    })).data,
-    getNextPageParam: (pagina) => pagina.proximoCursor,
-    staleTime: 0,
-  });
+  const consulta = useHistorico();
   const sessoes = consulta.data?.pages.flatMap((pagina) => pagina.sessoes);
   return (
     <>

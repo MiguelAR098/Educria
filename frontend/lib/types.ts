@@ -36,21 +36,14 @@ export interface DesempenhoAluno {
   nivelAtual: number; // 1 a 10
   errosConsecutivos?: number;
   nivelMaximo?: boolean;
-  xpAtual?: number;
-  xpProximoNivel?: number;
-  progressoPercentual?: number;
   totalAcertos: number;
   totalErros: number;
-  sequenciaDias?: number;
 }
 
 export interface PontosTurma {
-  turmaId?: string | number | null;
-  nomeTurma?: string;
-  codigoTurma?: string;
+  turmaId: number | null;
+  nomeTurma: string;
   pontosTotais: number;
-  metaTurma?: number;
-  rankingPosicao?: number;
 }
 
 export interface CriarTurmaPayload {

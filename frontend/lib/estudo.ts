@@ -77,3 +77,12 @@ export function mensagemErro(erro: unknown) {
   }
   return "Não foi possível conectar à atividade. Tente novamente.";
 }
+
+export function useSessoes() {
+  const aluno = useChaveAluno();
+  return useQuery({
+    queryKey: ["sessoes", aluno],
+    staleTime: 0,
+    queryFn: async () => (await api.get<ResumoSessao[]>(rotaSessoes)).data,
+  });
+}
