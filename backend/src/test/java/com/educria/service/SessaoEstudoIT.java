@@ -222,8 +222,10 @@ class SessaoEstudoIT {
         assertFalse(call(get(rota), token, 200).toString().contains("explicacao"));
         assertFalse(inicio.get("questaoAtual").has("respostaCorreta"));
         var incorreta = call(put(resposta).content(body(Map.of("alternativa","C", "correta",true))), token, 200);
-        assertEquals(json.valueToTree(Map.of("alternativa","C","correta",false,"explicacao","Explicação",
-                "nivelAnterior",1,"nivelAtual",1)), incorreta);
+        assertTrue(incorreta.get("reaprender").asBoolean());
+        assertFalse(incorreta.get("correta").asBoolean());
+        assertNotEquals("Explicação", incorreta.get("explicacao").asText());
+        assertNiveis(incorreta, 1, 1);
         assertEquals(incorreta, call(get(rota), token, 200).get("feedback"));
         assertEquals(1, id("""
                 select count(*) from respostas_aluno where aluno_id=? and sessao_id=? and questao_id=?
@@ -234,16 +236,10 @@ class SessaoEstudoIT {
         assertFalse(call(get(rota), token, 200).has("feedback"));
         String segundaRota = rota + "/questoes/" + proxima.at("/questaoAtual/id").asLong() + "/resposta";
         assertTrue(call(put(segundaRota).content(body(Map.of("alternativa","A"))), token, 200).get("correta").asBoolean());
-        call(put(rota + "/encerrar"), token, 200);
+        call(put(rota + "/encerrar"), token, 409);
         assertEquals(incorreta, call(put(resposta).content(body(Map.of("alternativa","C"))), token, 200));
         call(put(resposta).content(body(Map.of("alternativa","A"))), token, 409);
         assertEquals(2, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
-        when(relogio.instant()).thenReturn(Instant.parse("2027-01-01T03:00:00Z"));
-        var nova = abrir(assunto, 201);
-        assertEquals(q1, nova.at("/questaoAtual/id").asLong());
-        assertFalse(nova.has("feedback"));
-        String outraRota = BASE + "/" + nova.at("/sessao/id").asLong() + "/questoes/" + q1 + "/resposta";
-        assertTrue(call(put(outraRota).content(body(Map.of("alternativa","A"))), token, 200).get("correta").asBoolean());
     }
 
     @Test
@@ -310,8 +306,8 @@ class SessaoEstudoIT {
         var estado = abrir(assunto, 201);
         long sessao = estado.at("/sessao/id").asLong();
         db.update("""
-                insert into respostas_aluno(aluno_id,sessao_id,questao_id,resposta_dada,correta)
-                values (?,?,?,'A',true)
+                insert into respostas_aluno(aluno_id,sessao_id,questao_id,passo,resposta_dada,correta)
+                values (?,?,?,1,'A',true)
                 """, aluno, sessao, estado.at("/questaoAtual/id").asLong());
         var acerto = body(Map.of("alternativa","A"));
         var legado = call(put(rotaResposta(estado)).content(acerto), token, 200);
@@ -348,9 +344,17 @@ class SessaoEstudoIT {
         int[] intervalos = {1, 3, 7, 16, 35, 70, 70, 1};
         for (int i = 0; i < intervalos.length; i++) {
             int dias = intervalos[i];
-            String alternativa = i == 0 || i == intervalos.length - 1 ? "B" : "A";
+            String alternativa = "A";
             String rota = rotaResposta(estado);
-            var resposta = body(Map.of("alternativa", alternativa));
+            if (i == intervalos.length - 1) {
+                call(put(rota).content(body(Map.of("alternativa","B", "passo",1))), token, 200);
+                var semAgenda = call(get(AGENDA), token, 200);
+                assertTrue(semAgenda.get("pendentes").isEmpty());
+                assertTrue(semAgenda.get("futuras").isEmpty());
+                estado = call(put(BASE + "/" + estado.at("/sessao/id").asLong() + "/questoes/2"), token, 200);
+                assertTrue(estado.get("repetindo").asBoolean());
+            }
+            var resposta = body(Map.of("alternativa", alternativa, "passo",estado.get("passo").asInt()));
             call(put(rota).content(resposta), token, 200);
             var agenda = call(get(AGENDA), token, 200);
             assertEquals(dia.toString(), agenda.get("hoje").asText());
@@ -416,7 +420,7 @@ class SessaoEstudoIT {
         call(put(rotaResposta(estado)).content(body(Map.of("alternativa","A"))), token, 200);
         estado = call(put(rota + "/questoes/2"), token, 200);
         call(put(rotaResposta(estado)).content(body(Map.of("alternativa","B"))), token, 200);
-        call(put(rota + "/encerrar"), token, 200);
+        call(put(rota + "/interromper"), token, 200);
         var resultado = call(get(rota + "/resultado"), token, 200);
         var indicadores = resultado.get("sessao");
         assertTrue(resultado.get("anterior").isNull());
@@ -424,7 +428,7 @@ class SessaoEstudoIT {
         assertEquals(1, indicadores.get("erros").asInt());
         assertEquals(1, indicadores.get("nivelAntes").asInt());
         assertEquals(2, indicadores.get("nivelDepois").asInt());
-        assertEquals("ENCERRADA", indicadores.get("situacao").asText());
+        assertEquals("INTERROMPIDA", indicadores.get("situacao").asText());
         assertFalse(indicadores.has("pontosPrivados"));
         assertEquals(2, resultado.get("questoes").size());
         assertTrue(resultado.at("/questoes/0/correta").isBoolean());
@@ -435,7 +439,7 @@ class SessaoEstudoIT {
         assertFalse(resultado.at("/questoes/1/correta").asBoolean());
         assertEquals("B", resultado.at("/questoes/1/alternativa").asText());
         assertFalse(resultado.at("/questoes/1").has("respostaCorreta"));
-        assertEquals(2, resultado.get("revisoes").size());
+        assertEquals(1, resultado.get("revisoes").size());
         assertEquals(primeira, resultado.at("/revisoes/0/questaoId").asLong());
         assertEquals("2027-01-01", resultado.at("/revisoes/0/proximaRevisao").asText());
         assertFalse(resultado.at("/revisoes/0").has("respostaCorreta"));
@@ -464,7 +468,7 @@ class SessaoEstudoIT {
         assertEquals(2, resultado.at("/sessao/apresentadas").asInt());
         assertEquals(0, resultado.at("/sessao/acertos").asInt());
         assertEquals(1, resultado.at("/sessao/erros").asInt());
-        assertEquals(1, resultado.get("revisoes").size());
+        assertTrue(resultado.get("revisoes").isEmpty());
         assertEquals(resultado, call(get(rota + "/resultado"), token, 200));
     }
 
@@ -512,6 +516,56 @@ class SessaoEstudoIT {
         assertEquals(1, ultima.get("sessoes").size());
         assertTrue(ultima.at("/sessoes/0/id").asLong() < cursor);
         assertTrue(ultima.get("proximoCursor").isNull());
+    }
+
+    @Test
+    void intercalaDuasPendenciasSemInflarQuestoesOuDesempenho() throws Exception {
+        var estado = abrir(assunto, 201);
+        long sessao = estado.at("/sessao/id").asLong();
+        String rota = BASE + "/" + sessao;
+        List<Long> vistas = new ArrayList<>();
+        for (int passo = 1; passo <= 14; passo++) {
+            long questao = estado.at("/questaoAtual/id").asLong();
+            boolean repetida = vistas.contains(questao);
+            assertEquals(repetida, estado.get("repetindo").asBoolean());
+            if (!repetida) vistas.add(questao);
+            assertEquals(vistas.size(), estado.at("/sessao/questoesApresentadas").asInt());
+            assertTrue(vistas.size() <= 10);
+            // Dois erros iniciais, e a primeira questão erra mais duas vezes.
+            if (passo == 4 || passo == 7 || passo == 10) assertEquals(vistas.getFirst(), questao);
+            if (passo == 5) assertEquals(vistas.get(1), questao);
+            boolean errar = Set.of(1, 2, 4, 7).contains(passo);
+            var pedido = body(Map.of("alternativa", errar ? "B" : "A", "passo", passo));
+            var feedback = call(put(rotaResposta(estado)).content(pedido), token, 200);
+            assertEquals(feedback, call(put(rotaResposta(estado)).content(pedido), token, 200));
+            if (passo == 4) {
+                // O reenvio do passo 1 chega quando a questão já reapareceu.
+                call(put(rotaResposta(estado)).content(body(Map.of("alternativa","A", "passo",1))), token, 409);
+                var pausa = call(put(rota + "/interromper"), token, 200);
+                assertEquals(2, pausa.get("pendencias").asInt());
+                assertEquals(pausa, call(get(rota), token, 200));
+                call(put(rota + "/encerrar"), token, 409);
+                assertEquals(feedback, call(put(rota + "/retomar"), token, 200).get("feedback"));
+            }
+            if (passo < 14) {
+                estado = call(put(rota + "/questoes/" + (passo + 1)), token, 200);
+                assertFalse(estado.has("feedback"));
+            }
+        }
+        assertEquals(10, vistas.size());
+        call(put(rota + "/questoes/15"), token, 409);
+        assertEquals(0, call(put(rota + "/encerrar"), token, 200).get("pendencias").asInt());
+        var resultado = call(get(rota + "/resultado"), token, 200);
+        assertEquals(10, resultado.at("/sessao/apresentadas").asInt());
+        assertEquals(10, resultado.at("/sessao/respondidas").asInt());
+        assertEquals(10, resultado.at("/sessao/acertos").asInt());
+        assertEquals(4, resultado.at("/sessao/erros").asInt());
+        assertEquals(14, resultado.get("questoes").size());
+        assertEquals(10, resultado.get("revisoes").size());
+        assertEquals(8, id("select total_acertos from desempenho_por_assunto where aluno_id=? and assunto_id=?",
+                usuarios.getFirst(), assunto));
+        assertEquals(2, id("select total_erros from desempenho_por_assunto where aluno_id=? and assunto_id=?",
+                usuarios.getFirst(), assunto));
     }
 
     private String rotaResposta(JsonNode estado) {

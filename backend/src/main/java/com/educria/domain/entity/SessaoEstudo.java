@@ -61,19 +61,37 @@ public class SessaoEstudo {
         return new ResumoSessao(id, assunto.getId(), situacao, apresentadas.size(), iniciadaEm, atualizadaEm);
     }
 
+    @Getter
+    private int passo = 1;
+    private Long questaoRetomadaId;
+
+    public boolean repetindo() {
+        return questaoRetomadaId != null;
+    }
+
+    public void reapresentar(Long questaoId) {
+        if (!apresentadas.contains(questaoId)) throw conflito("Questão fora da sessão");
+        questaoRetomadaId = questaoId;
+        avancarPasso();
+    }
+
+    private void avancarPasso() {
+        passo++;
+        atualizadaEm = Instant.now().truncatedTo(ChronoUnit.MICROS);
+    }
+
     public Set<Long> usadas() {
         return Set.copyOf(apresentadas);
     }
 
     public Long questaoAtual() {
-        return apresentadas.getLast();
+        return repetindo() ? questaoRetomadaId : apresentadas.getLast();
     }
 
     public boolean precisaApresentar(int posicao) {
         if (situacao != SituacaoSessao.ATIVA) throw conflito("A sessão precisa estar ativa");
-        if (posicao < 1 || posicao > LIMITE) throw conflito("A posição deve estar entre 1 e 10");
-        if (posicao > apresentadas.size() + 1) throw conflito("Solicite a próxima posição em ordem");
-        return posicao == apresentadas.size() + 1;
+        if (posicao < 1 || posicao > passo + 1) throw conflito("Solicite a próxima posição em ordem");
+        return posicao == passo + 1;
     }
 
     public void apresentar(Long questaoId, boolean revisao) {
@@ -82,7 +100,8 @@ public class SessaoEstudo {
         }
         apresentadas.add(questaoId);
         if (revisao) revisoesApresentadas++;
-        atualizadaEm = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        questaoRetomadaId = null;
+        avancarPasso();
     }
 
     public void mudarSituacao(SituacaoSessao destino) {

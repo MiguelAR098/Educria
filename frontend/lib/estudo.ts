@@ -26,6 +26,7 @@ export interface QuestaoAtual {
 export type Alternativa = "A" | "B" | "C" | "D";
 
 export interface FeedbackResposta {
+  reaprender?: boolean;
   nivelAnterior?: number;
   nivelAtual?: number;
   alternativa: Alternativa;
@@ -34,6 +35,9 @@ export interface FeedbackResposta {
 }
 
 export interface EstadoSessao {
+  passo?: number;
+  repetindo?: boolean;
+  pendencias?: number;
   feedback?: FeedbackResposta;
   sessao: ResumoSessao;
   questaoAtual: QuestaoAtual | null;

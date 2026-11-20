@@ -43,6 +43,9 @@ public class RespostaAluno {
     @Column(name = "nivel_atual", updatable = false)
     private Integer nivelAtual;
 
+    private Integer passo;
+    private boolean reaprender;
+
     @CreationTimestamp
     @Column(name = "respondido_em", updatable = false)
     private LocalDateTime respondidoEm;

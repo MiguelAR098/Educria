@@ -19,10 +19,11 @@ public class HistoricoSessaoRepository {
 
     // Os extremos são os da primeira e da última resposta, inclusive quando o nível legado é nulo.
     private static final String INDICADORES = """
-            select s.id, a.nome as assunto, s.situacao, s.iniciada_em, count(sq.questao_id) as apresentadas,
+            select s.id, a.nome as assunto, s.situacao, s.iniciada_em, count(distinct sq.questao_id) as apresentadas,
+                   count(distinct r.questao_id) as respondidas,
                    count(*) filter (where r.correta) as acertos, count(*) filter (where not r.correta) as erros,
-                   (array_agg(r.nivel_anterior order by sq.indice) filter (where r.id is not null))[1] as antes,
-                   (array_agg(r.nivel_atual order by sq.indice desc) filter (where r.id is not null))[1] as depois
+                   (array_agg(r.nivel_anterior order by r.passo) filter (where r.id is not null))[1] as antes,
+                   (array_agg(r.nivel_atual order by r.passo desc) filter (where r.id is not null))[1] as depois
             from sessoes_estudo s
             join usuarios u on u.id = s.aluno_id
             join assuntos a on a.id = s.assunto_id
@@ -33,7 +34,7 @@ public class HistoricoSessaoRepository {
     private static final String AGRUPAR = " group by s.id, a.nome order by s.id desc ";
     private static final RowMapper<Indicadores> LER = (rs, i) -> new Indicadores(
             rs.getLong("id"), rs.getString("assunto"), SituacaoSessao.valueOf(rs.getString("situacao")),
-            rs.getTimestamp("iniciada_em").toInstant(), rs.getInt("apresentadas"), rs.getInt("acertos"),
+            rs.getTimestamp("iniciada_em").toInstant(), rs.getInt("apresentadas"), rs.getInt("respondidas"), rs.getInt("acertos"),
             rs.getInt("erros"), rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class));
 
     public List<Indicadores> listar(String email, Long antesDe, int limite) {
@@ -51,19 +52,19 @@ public class HistoricoSessaoRepository {
 
     public List<Item> questoes(String email, long id) {
         return jdbc.sql("""
-                select sq.indice + 1 as numero, q.enunciado, r.resposta_dada as alternativa, r.correta
+                select sq.indice + 1 as numero, q.enunciado, r.resposta_dada as alternativa, r.correta, r.passo
                 from sessoes_estudo s
                 join usuarios u on u.id = s.aluno_id
                 join sessao_questoes sq on sq.sessao_id = s.id
                 join questoes q on q.id = sq.questao_id
                 left join respostas_aluno r on r.sessao_id = s.id and r.questao_id = q.id and r.aluno_id = s.aluno_id
-                where u.email = :email and s.id = :id order by sq.indice
+                where u.email = :email and s.id = :id order by sq.indice, r.passo
                 """).param("email", email).param("id", id).query(Item.class).list();
     }
 
     public List<Revisao> revisoes(String email, long id) {
         return jdbc.sql("""
-                select q.id as questao_id, q.enunciado, rep.proxima_revisao
+                select distinct q.id as questao_id, q.enunciado, rep.proxima_revisao
                 from sessoes_estudo s
                 join usuarios u on u.id = s.aluno_id
                 join respostas_aluno r on r.sessao_id = s.id and r.aluno_id = s.aluno_id

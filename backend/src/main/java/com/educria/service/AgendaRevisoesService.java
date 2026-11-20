@@ -24,9 +24,14 @@ public class AgendaRevisoesService {
     // O chamador já bloqueou o aluno e validou a unicidade da resposta.
     @Transactional(propagation = Propagation.MANDATORY)
     public void registrar(Aluno aluno, Questao questao, boolean correta) {
-        var agenda = repeticoes.findByAlunoIdAndQuestaoId(aluno.getId(), questao.getId())
+        var existente = repeticoes.findByAlunoIdAndQuestaoId(aluno.getId(), questao.getId());
+        if (!correta) {
+            existente.ifPresent(repeticoes::delete);
+            return;
+        }
+        var agenda = existente
                 .orElseGet(() -> RepeticaoEspacada.builder().aluno(aluno).questao(questao).build());
-        agenda.registrarResposta(correta, LocalDate.now(relogio));
+        agenda.registrarAcerto(LocalDate.now(relogio));
         repeticoes.save(agenda);
     }
 

@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
+import java.util.Locale;
 import java.util.HashMap;
 import java.time.Clock;
 import java.util.Set;
@@ -32,6 +34,8 @@ public class SessaoEstudoService {
     private final Clock relogio;
     private final AgendaRevisoesService agenda;
     private final RepeticaoEspacadaRepository repeticoes;
+
+    private static final int QUESTOES_ENTRE_TENTATIVAS = 2;
 
     private record Escolha(QuestaoParaAluno questao, boolean revisao) {}
 
@@ -56,9 +60,9 @@ public class SessaoEstudoService {
                 : assuntos.findById(assuntoId)
                     .orElseThrow(() -> new ApiException("Assunto não encontrado", HttpStatus.NOT_FOUND));
 
-        var primeira = selecionar(aluno, assunto.getId(), Set.of(), 0, hoje);
+        var primeira = selecionar(aluno, assunto.getId(), Set.of(), 0, hoje).orElseThrow(SessaoEstudoService::semQuestoes);
         var sessao = sessoes.save(new SessaoEstudo(aluno, assunto, primeira.questao().id(), primeira.revisao()));
-        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao()), true);
+        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao(), null, 1, false, 0), true);
     }
 
     @Transactional(readOnly = true)
@@ -66,7 +70,7 @@ public class SessaoEstudoService {
         return sessoes.listarDoAluno(email);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public EstadoSessao consultar(String email, Long id) {
         return estado(buscar(email, id));
     }
@@ -75,6 +79,9 @@ public class SessaoEstudoService {
     public EstadoSessao mudarSituacao(String email, Long id, SituacaoSessao destino) {
         bloquearAluno(email);
         var sessao = buscar(email, id);
+        if (destino == SituacaoSessao.ENCERRADA && !respostas.fila(id).isEmpty()) {
+            throw new ApiException("Ainda há questões para reaprender. Você pode pausar a sessão.", HttpStatus.CONFLICT);
+        }
         sessao.mudarSituacao(destino);
         return estado(sessao);
     }
@@ -84,28 +91,45 @@ public class SessaoEstudoService {
         Aluno aluno = bloquearAluno(email);
         var sessao = buscar(email, id);
         if (!sessao.precisaApresentar(posicao)) return estado(sessao);
-        var proxima = selecionar(aluno, sessao.getAssunto().getId(), sessao.usadas(),
-                sessao.getRevisoesApresentadas(), LocalDate.now(relogio));
-        sessao.apresentar(proxima.questao().id(), proxima.revisao());
-        return new EstadoSessao(sessao.resumo(), proxima.questao());
+        if (sessao.repetindo() && respostas.findBySessaoIdAndPasso(id, sessao.getPasso()).isEmpty()) {
+            throw new ApiException("Responda à tentativa atual antes de avançar", HttpStatus.CONFLICT);
+        }
+        var fila = respostas.fila(id);
+        var pendente = fila.isEmpty() ? null : fila.getFirst();
+        boolean intercalou = pendente != null && sessao.getPasso() - pendente.getUltimoPasso() >= QUESTOES_ENTRE_TENTATIVAS;
+        if (!intercalou && sessao.usadas().size() < SessaoEstudo.LIMITE) {
+            var proxima = selecionar(aluno, sessao.getAssunto().getId(), sessao.usadas(),
+                    sessao.getRevisoesApresentadas(), LocalDate.now(relogio));
+            if (proxima.isPresent()) {
+                var escolha = proxima.get();
+                sessao.apresentar(escolha.questao().id(), escolha.revisao());
+                return estado(sessao);
+            }
+        }
+        if (pendente == null) throw semQuestoes();
+        sessao.reapresentar(pendente.getQuestao());
+        return estado(sessao);
     }
 
     @Transactional
-    public FeedbackResposta responder(String email, Long id, Long questaoId, String alternativa) {
+    public FeedbackResposta responder(String email, Long id, Long questaoId, String alternativa, Integer passo) {
         Aluno aluno = bloquearAluno(email);
         SessaoEstudo sessao = buscar(email, id);
         Questao questao = sessoes.questaoDaSessao(id, questaoId)
                 .orElseThrow(() -> new ApiException("Questão não apresentada nesta sessão", HttpStatus.NOT_FOUND));
 
-        var anterior = respostas.feedback(id, questaoId);
+        // Um cliente antigo só pode enviar/repetir a primeira resposta àquela questão.
+        var anterior = passo == null ? respostas.findFirstBySessaoIdAndQuestaoIdOrderByPasso(id, questaoId)
+                : respostas.findBySessaoIdAndPasso(id, passo);
         if (anterior.isPresent()) {
-            var feedback = anterior.get();
-            if (!feedback.alternativa().equals(alternativa)) {
-                throw new ApiException("Esta questão já foi respondida com outra alternativa", HttpStatus.CONFLICT);
+            var salva = anterior.get();
+            if (!salva.getQuestao().getId().equals(questaoId) || !salva.getRespostaDada().equals(alternativa)) {
+                throw new ApiException("Esta tentativa já tem outra resposta", HttpStatus.CONFLICT);
             }
-            return feedback;
+            return feedback(salva);
         }
-        if (sessao.getSituacao() != SituacaoSessao.ATIVA || !questaoId.equals(sessao.questaoAtual())) {
+        if ((passo != null && passo != sessao.getPasso()) || sessao.getSituacao() != SituacaoSessao.ATIVA
+                || !questaoId.equals(sessao.questaoAtual())) {
             throw new ApiException("Responda à questão atual de uma sessão ativa", HttpStatus.CONFLICT);
         }
         String texto = switch (alternativa) {
@@ -123,15 +147,17 @@ public class SessaoEstudoService {
         var desempenho = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assunto.getId())
                 .orElseGet(() -> new DesempenhoPorAssunto(aluno, assunto));
         int nivelAnterior = desempenho.getNivelAtual();
-        desempenho.registrarResposta(correta);
-        desempenhos.save(desempenho);
+        if (!sessao.repetindo()) {
+            desempenho.registrarResposta(correta);
+            desempenhos.save(desempenho);
+        }
         int nivelAtual = desempenho.getNivelAtual();
 
-        respostas.save(RespostaAluno.builder().aluno(aluno).sessao(sessao).questao(questao)
+        var salva = respostas.save(RespostaAluno.builder().passo(sessao.getPasso()).reaprender(!correta).aluno(aluno).sessao(sessao).questao(questao)
                 .respostaDada(alternativa).correta(correta)
                 .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).build());
         agenda.registrar(aluno, questao, correta);
-        return new FeedbackResposta(alternativa, correta, questao.getExplicacao(), nivelAnterior, nivelAtual);
+        return feedback(salva);
     }
 
     private Aluno bloquearAluno(String email) {
@@ -149,10 +175,32 @@ public class SessaoEstudoService {
         var resumo = sessao.resumo();
         Long questaoId = sessao.questaoAtual();
         return new EstadoSessao(resumo, sessoes.questaoApresentada(questaoId),
-                respostas.feedback(resumo.id(), questaoId).orElse(null));
+                respostas.findBySessaoIdAndPasso(resumo.id(), sessao.getPasso()).map(this::feedback).orElse(null),
+                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id()).size());
     }
 
-    private Escolha selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas, int revisoesUsadas, LocalDate hoje) {
+    private FeedbackResposta feedback(RespostaAluno resposta) {
+        var questao = resposta.getQuestao();
+        String explicacao = resposta.isReaprender() ? orientacao(questao.getAssunto().getNome()) : questao.getExplicacao();
+        return new FeedbackResposta(resposta.getRespostaDada(), resposta.isCorreta(), explicacao,
+                resposta.getNivelAnterior(), resposta.getNivelAtual(), resposta.isReaprender());
+    }
+
+    private String orientacao(String assunto) {
+        return switch (assunto.toLowerCase(Locale.ROOT)) {
+            case "somar e subtrair" -> "Separe dezenas e unidades. Confira se a operação deve aumentar ou diminuir o valor inicial.";
+            case "multiplicar e dividir" -> "Organize os valores em grupos iguais e confira o cálculo com a operação inversa.";
+            case "frações" -> "Identifique o todo e o que cada parte representa. Faça um desenho para conferir.";
+            case "porcentagem" -> "Identifique qual quantidade representa 100% antes de calcular a parte pedida.";
+            case "proporção" -> "Organize os pares de valores e verifique se variam no mesmo sentido ou em sentidos opostos.";
+            case "equações" -> "Faça a mesma operação nos dois lados da igualdade. Teste o valor encontrado.";
+            case "área e perímetro" -> "Confira se a pergunta pede a superfície ou o contorno e observe a unidade de medida.";
+            case "várias etapas" -> "Separe o problema em etapas e anote cada resultado intermediário.";
+            default -> "Identifique o que a pergunta pede e refaça o raciocínio antes de comparar as alternativas.";
+        };
+    }
+
+    private Optional<Escolha> selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas, int revisoesUsadas, LocalDate hoje) {
         int nivel = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assuntoId)
                 .map(DesempenhoPorAssunto::getNivelAtual).orElse(NivelAdaptativo.MINIMO);
         var datas = new HashMap<Long, LocalDate>();
@@ -160,8 +208,8 @@ public class SessaoEstudoService {
             datas.put(item.getQuestaoId(), item.getData());
         }
         var contexto = new SelecaoAdaptativaService.Contexto(usadas, datas, revisoesUsadas, hoje);
-        var questao = selecao.selecionar(assuntoId, nivel, contexto).orElseThrow(SessaoEstudoService::semQuestoes);
-        return new Escolha(questao, datas.containsKey(questao.id()));
+        return selecao.selecionar(assuntoId, nivel, contexto)
+                .map(questao -> new Escolha(questao, datas.containsKey(questao.id())));
     }
 
     private static ApiException semQuestoes() {

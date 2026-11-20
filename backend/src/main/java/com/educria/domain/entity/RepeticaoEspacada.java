@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /**
  * Controle de repetição espaçada por aluno e questão. Registros legados preservam a atividade.
  * Progressão forçada: 1d → 3d → 7d → 16d → 35d → 70d no acerto.
- * No erro: volta para 1 dia.
+ * A agenda por questão só recebe acertos. A API legada por atividade conserva suas regras.
  */
 @Entity
 @Table(name = "repeticao_espacada",
@@ -56,8 +56,8 @@ public class RepeticaoEspacada {
 
     // ===================== REGRAS DE NEGÓCIO =====================
 
-    public void registrarResposta(boolean correta, LocalDate hoje) {
-        agendar(correta && ultimaRevisao != null ? intervaloAtual.proximo() : IntervaloRepeticao.D1, hoje);
+    public void registrarAcerto(LocalDate hoje) {
+        agendar(ultimaRevisao != null ? intervaloAtual.proximo() : IntervaloRepeticao.D1, hoje);
     }
 
     public void registrarAcerto() {

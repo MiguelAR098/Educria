@@ -121,7 +121,14 @@ class DashboardAluno(unittest.TestCase):
         opcao = combo.locator("option").filter(has_text=ASSUNTO)
         expect(opcao).to_have_count(1)
         combo.select_option(opcao.get_attribute("value"))
-        page.get_by_role("button", name="Iniciar sessão").click()
+        with page.expect_response(lambda r: r.request.method == "POST" and
+                                  urlparse(r.url).path == "/api/aluno/sessoes") as inicio:
+            page.get_by_role("button", name="Iniciar sessão").click()
+        estado = inicio.value.json()
+        self.assertIsNone(estado.get("feedback"))
+        campos_publicos = {"id", "assuntoId", "dificuldade", "enunciado",
+                           "alternativaA", "alternativaB", "alternativaC", "alternativaD"}
+        self.assertFalse(set(estado["questaoAtual"]) - campos_publicos)
         enviar = page.get_by_role("button", name="Enviar resposta")
         expect(enviar).to_be_disabled()
         pergunta = page.get_by_role("heading", name=re.compile(r"Quanto é \d+ \+ \d+"))
@@ -152,6 +159,93 @@ class DashboardAluno(unittest.TestCase):
         expect(page.get_by_text("Resultado parcial")).to_be_visible()
         expect(page.get_by_text("Acertou", exact=True)).to_be_visible()
         expect(page.get_by_text(f"Sua alternativa: {letra}", exact=False)).to_be_visible()
+
+    def abrir_questao_de_teste(self):
+        api = ApiDeTeste()
+        api.aberta = True
+        self.page.route("**/api/**", api.atender)
+        self.login()
+        self.page.goto("/aluno/atividade/7")
+        expect(self.page.get_by_role("heading", name=api.questao["enunciado"])).to_be_focused()
+        return api
+
+    def test_selecao_e_envio_por_teclado(self):
+        page = self.page
+        self.abrir_questao_de_teste()
+        envios = []
+        page.on("request", lambda r: envios.append(r.post_data_json) if r.url.endswith("/resposta") else None)
+        enviar = page.get_by_role("button", name="Enviar resposta")
+        expect(enviar).to_be_disabled()
+        enviar.evaluate("botao => botao.click()")
+        margem = page.viewport_size["width"] - 12
+        for tecla, letra in zip(("Shift+a", "b", "Shift+c", "d", "1", "2", "3", "4"), "ABCDABCD"):
+            page.mouse.click(margem, 350)
+            self.assertFalse(page.evaluate("document.activeElement.closest('section') !== null"))
+            page.keyboard.press(tecla)
+            radio = page.locator(f'input[value="{letra}"]')
+            expect(radio).to_be_checked()
+            expect(radio).to_be_focused()
+        expect(page.get_by_role("checkbox")).to_have_count(0)
+        page.keyboard.press("Control+a")
+        expect(page.locator('input[value="D"]')).to_be_checked()
+        page.get_by_role("region", name="Quanto é 7 + 8?").evaluate("""secao => {
+            const campo = document.createElement('textarea');
+            secao.append(campo);
+            campo.focus();
+        }""")
+        page.keyboard.type("abc123")
+        expect(page.get_by_role("textbox")).to_have_value("abc123")
+        expect(page.locator('input[value="D"]')).to_be_checked()
+        page.get_by_role("textbox").evaluate("campo => campo.remove()")
+        page.locator('input[value="D"]').focus()
+        page.keyboard.press("2")
+        page.keyboard.press("Tab")
+        expect(enviar).to_be_focused()
+        page.keyboard.press("Shift+Tab")
+        expect(page.locator('input[value="B"]')).to_be_focused()
+        expect(page.get_by_text("7 mais 8 é 15.")).to_have_count(0)
+        self.assertEqual(envios, [])
+        page.keyboard.press("Tab")
+        page.keyboard.press("Enter")
+        expect(page.get_by_role("group", name="Correção da resposta")).to_be_focused()
+        expect(page.get_by_text("Você acertou!")).to_be_visible()
+        expect(page.get_by_text("7 mais 8 é 15.")).to_be_visible()
+        page.keyboard.press("Tab")
+        expect(page.get_by_role("button", name="Próxima questão")).to_be_focused()
+        self.assertEqual(envios, [{"alternativa": "B"}])
+
+    def test_layout_movel_falha_e_reenvio_sem_duplicar(self):
+        page = self.page
+        page.set_viewport_size({"width": 320, "height": 640})
+        api = self.abrir_questao_de_teste()
+        enviar = page.get_by_role("button", name="Enviar resposta")
+        for largura in (320, 390):
+            page.set_viewport_size({"width": largura, "height": 700})
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+            alvos = [*page.locator("fieldset label").all(), enviar, page.get_by_role("button", name="Pausar e sair")]
+            for alvo in alvos:
+                caixa = alvo.bounding_box()
+                self.assertGreaterEqual(min(caixa["width"], caixa["height"]), 44)
+        page.locator("fieldset label").nth(1).click()
+        tentativas = []
+        # Segura a primeira requisição para observar a interface durante o envio.
+        page.route("**/questoes/*/resposta", lambda rota: tentativas.append(rota))
+        enviar.evaluate("botao => { botao.click(); botao.click(); }")
+        expect(page.get_by_role("button", name="Enviando…")).to_be_disabled()
+        expect(page.get_by_text("Enviando sua resposta…")).to_have_count(1)
+        self.assertEqual(len(tentativas), 1)
+        tentativas[0].fulfill(status=503, json={})
+        expect(page.get_by_role("alert").filter(has_text="tente enviar novamente")).to_be_visible()
+        expect(page.locator('input[value="B"]')).to_be_checked()
+        expect(page.get_by_role("button", name="Próxima questão")).to_have_count(0)
+        page.unroute("**/questoes/*/resposta")
+        def confirmar(rota):
+            tentativas.append(rota)
+            api.atender(rota)
+        page.route("**/questoes/*/resposta", confirmar)
+        enviar.click()
+        expect(page.get_by_text("Você acertou!")).to_be_visible()
+        self.assertEqual(len(tentativas), 2)
 
     def test_fluxo_no_navegador(self):
         api = ApiDeTeste()
@@ -202,12 +296,78 @@ class DashboardAluno(unittest.TestCase):
         expect(page.get_by_text("Nível inicial: sem registro · Nível final: sem registro")).to_be_visible()
         expect(page.get_by_text("Nível inicial: 6 · Nível final: 7")).to_have_count(0)
 
-    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer backend dev e PostgreSQL")
-    def test_fluxo_com_api_real(self):
+    def cadastrar_na_api_real(self):
         cadastro = self.contexto.request.post("/api/auth/register", data={
             "nome": "Aluno de teste", "email": self.email, "senha": self.senha,
         }, headers={"X-Educria-Client": "web"})
         self.assertEqual(cadastro.status, 201)
+
+    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer backend dev e PostgreSQL")
+    def test_reaprender_apos_sair_e_entrar(self):
+        self.cadastrar_na_api_real()
+        self.login()
+        page = self.page
+        page.get_by_role("link", name="Fazer atividade").click()
+        combo = page.get_by_label("Assunto da sessão")
+        combo.select_option(combo.locator("option").filter(has_text=ASSUNTO).get_attribute("value"))
+        page.get_by_role("button", name="Iniciar sessão").click()
+        enunciado = page.locator("#enunciado-atual")
+        primeira = enunciado.inner_text()
+        sessao = page.url
+        enviar = page.get_by_role("button", name="Enviar resposta")
+        def resolver(acertar):
+            expect(page.get_by_role("radio").first).to_be_enabled()
+            a, op, b = re.search(r"(\d+) ([+-]) (\d+)", enunciado.inner_text()).groups()
+            valor = int(a) + int(b) if op == "+" else int(a) - int(b)
+            for indice, item in enumerate(page.locator("fieldset label").all(), 1):
+                if (item.get_by_text(str(valor), exact=True).count() > 0) == acertar:
+                    page.mouse.click(page.viewport_size["width"] - 12, 350)
+                    page.keyboard.press(str(indice))
+                    break
+            expect(enviar).to_be_enabled()
+            enviar.click()
+            expect(page.get_by_text("Você acertou!" if acertar else "Resposta incorreta.", exact=True)).to_be_visible()
+
+        resolver(False)
+        expect(page.get_by_text("Esta questão voltará", exact=False)).to_be_visible()
+        expect(page.get_by_text("Para reaprender: 1", exact=False)).to_be_visible()
+        page.get_by_role("button", name="Pausar e sair").click()
+        page.wait_for_url("**/aluno")
+        page.get_by_role("link", name="Minhas revisões").click()
+        expect(page.get_by_role("heading", name="Futuras (0)")).to_be_visible()
+        # Um contexto sem cookies/storage força nova autenticação.
+        novo = self.browser.new_context(base_url=BASE)
+        self.addCleanup(novo.close)
+        self.page = page = novo.new_page()
+        self.login()
+        page.goto(sessao)
+        page.get_by_role("button", name="Retomar sessão").click()
+        expect(page.get_by_text("Resposta incorreta.", exact=True)).to_be_visible()
+        enunciado = page.locator("#enunciado-atual")
+        enviar = page.get_by_role("button", name="Enviar resposta")
+        for _ in range(2):
+            anterior = enunciado.inner_text()
+            page.get_by_role("button", name="Próxima questão").click()
+            expect(enunciado).not_to_have_text(anterior)
+            expect(enunciado).not_to_have_text(primeira)
+            resolver(True)
+        page.get_by_role("button", name="Próxima questão").click()
+        expect(enunciado).to_have_text(primeira)
+        expect(enviar).to_be_disabled()
+        expect(page.get_by_text("Nova tentativa de uma questão anterior")).to_be_visible()
+        resolver(True)
+        expect(page.get_by_text("Para reaprender: 0", exact=False)).to_be_visible()
+        page.reload()
+        expect(page.get_by_text("Próxima revisão agendada.")).to_be_visible()
+        page.get_by_role("button", name="Pausar e sair").click()
+        page.get_by_role("link", name="Histórico de sessões").click()
+        page.get_by_role("link").filter(has_text=ASSUNTO).click()
+        expect(page.locator("p").filter(has_text="Tentativa 1 ·")).to_contain_text("Errou")
+        expect(page.locator("p").filter(has_text="Tentativa 2 ·")).to_contain_text("Acertou")
+
+    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer backend dev e PostgreSQL")
+    def test_fluxo_com_api_real(self):
+        self.cadastrar_na_api_real()
         self.fluxo()
 
 

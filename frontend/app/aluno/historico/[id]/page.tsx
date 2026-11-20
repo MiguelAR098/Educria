@@ -11,11 +11,12 @@ import { mensagemErro, rotaSessoes, useChaveAluno } from "@/lib/estudo";
 import { Indicadores, inicio, Resultado, situacoes } from "@/lib/historico";
 
 function Resumo({ sessao }: { sessao: Indicadores }) {
-  const respondidas = sessao.acertos + sessao.erros;
+  const tentativas = sessao.acertos + sessao.erros;
+  const respondidas = sessao.respondidas ?? tentativas;
   return (
     <div className="space-y-3">
       <dl className="grid grid-cols-2 gap-3 text-slate-700 sm:grid-cols-4">
-        {([["Acertos", sessao.acertos], ["Erros", sessao.erros], ["Respondidas", respondidas],
+        {([["Acertos", sessao.acertos], ["Erros", sessao.erros], ["Tentativas", tentativas], ["Questões distintas", sessao.apresentadas],
           ["Sem resposta", sessao.apresentadas - respondidas]] as const).map(([nome, valor]) => (
           <div key={nome}><dt className="text-sm">{nome}</dt><dd className="text-xl font-bold text-slate-900">{valor}</dd></div>
         ))}
@@ -35,6 +36,12 @@ export default function ResultadoPage() {
     staleTime: 0,
   });
   const dados = consulta.data;
+  const porQuestao = new Map<number, Resultado["questoes"]>();
+  for (const item of dados?.questoes ?? []) {
+    const tentativas = porQuestao.get(item.numero);
+    if (tentativas) tentativas.push(item);
+    else porQuestao.set(item.numero, [item]);
+  }
   return (
     <>
       <Link href="/aluno/historico" className="inline-flex items-center gap-2 font-semibold text-indigo-700">
@@ -55,13 +62,14 @@ export default function ResultadoPage() {
         </CardContent></Card>
         <Card><CardHeader><h2 className="text-xl font-bold">Suas respostas</h2></CardHeader>
           <CardContent>
-            <ol className="divide-y divide-slate-200">{dados.questoes?.map((q) => (
-              <li key={q.numero} className="space-y-1 py-3">
-                <p className="break-words"><strong>Questão {q.numero}</strong> · {q.enunciado}</p>
-                <p className="text-sm">
+            <ol className="divide-y divide-slate-200">{Array.from(porQuestao, ([numero, itens]) => (
+              <li key={numero} className="space-y-1 py-3">
+                <p className="break-words"><strong>Questão {numero}</strong> · {itens[0].enunciado}</p>
+                {itens.map((q, i) => <p key={q.passo ?? i} className="text-sm">
+                  {itens.length > 1 && <span>Tentativa {i + 1} · </span>}
                   <strong>{q.correta === null ? "Sem resposta registrada" : q.correta ? "Acertou" : "Errou"}</strong>
                   {q.alternativa && <span> · Sua alternativa: {q.alternativa}</span>}
-                </p>
+                </p>)}
               </li>))}</ol>
             {!dados.questoes && <p>Atualize o backend para ver as respostas por questão.</p>}
           </CardContent>

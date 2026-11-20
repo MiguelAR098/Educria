@@ -29,6 +29,7 @@ export default function HistoricoPage() {
           <div className="min-w-0 space-y-1">
             <p className="font-semibold text-slate-900 first-letter:uppercase">{s.assunto}</p>
             <p className="text-sm text-slate-600">{inicio(s)} · {situacoes[s.situacao]}</p>
+            <p className="text-sm">{s.apresentadas} questões distintas · {s.acertos + s.erros} tentativas</p>
             <p className="text-sm">Acertos: {s.acertos} · Erros: {s.erros}</p>
           </div><ArrowRight size={18} className="shrink-0 text-indigo-600" aria-hidden="true" />
         </Link></li>))}</ul>}

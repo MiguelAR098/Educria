@@ -22,7 +22,7 @@ public class RespostaSessaoController {
     @PutMapping("/{id}/questoes/{questaoId}/resposta")
     public FeedbackResposta responder(Principal titular, @PathVariable Long id, @PathVariable Long questaoId,
                                       @Valid @RequestBody EnviarResposta pedido) {
-        return service.responder(titular.getName(), id, questaoId, pedido.alternativa());
+        return service.responder(titular.getName(), id, questaoId, pedido.alternativa(), pedido.passo());
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})

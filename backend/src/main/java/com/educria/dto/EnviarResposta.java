@@ -6,4 +6,4 @@ import jakarta.validation.constraints.Pattern;
 public record EnviarResposta(
         @NotNull(message = "Informe uma alternativa")
         @Pattern(regexp = "[A-D]", message = "Escolha A, B, C ou D")
-        String alternativa) {}
+        String alternativa, @jakarta.validation.constraints.Positive Integer passo) {}

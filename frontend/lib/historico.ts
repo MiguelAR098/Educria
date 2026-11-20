@@ -8,6 +8,7 @@ export interface Indicadores {
   situacao: ResumoSessao["situacao"];
   iniciadaEm: string;
   apresentadas: number;
+  respondidas: number;
   acertos: number;
   erros: number;
   nivelAntes: number | null;
@@ -22,7 +23,7 @@ export interface Historico {
 export interface Resultado {
   sessao: Indicadores;
   anterior: Indicadores | null;
-  questoes: { numero: number; enunciado: string; alternativa: string | null; correta: boolean | null }[];
+  questoes: { numero: number; passo: number | null; enunciado: string; alternativa: string | null; correta: boolean | null }[];
   revisoes: { questaoId: number; enunciado: string; proximaRevisao: string }[];
 }
 
