@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { Alternativa, EstadoSessao, FeedbackResposta, limiteQuestoes, mensagemErro, QuestaoAtual, rotaSessoes, semQuestoes,
   useAssuntosDeEstudo, useChaveAluno } from "@/lib/estudo";
+import estilos from "./leitura.module.css";
 
 const letras = ["A", "B", "C", "D"] as const;
 
@@ -70,8 +71,8 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
                 disabled={!texto} onChange={() => setMarcada(letra)} className="peer sr-only" />
               <span className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border border-slate-500 bg-white px-3 py-3 text-slate-800 hover:border-indigo-300 peer-checked:border-indigo-600 peer-checked:bg-indigo-50 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-700 peer-focus-visible:ring-offset-2 peer-disabled:cursor-default sm:px-4">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-200 bg-white text-sm font-bold text-indigo-700">{letra}</span>
-                <span className="min-w-0 break-words">{texto || "Alternativa indisponível"}</span>
-                {selecionada && <Check aria-hidden="true" className="ml-auto h-5 w-5 shrink-0 text-indigo-800" />}
+                <span className={estilos.alternativa}>{texto || "Alternativa indisponível"}</span>
+                {selecionada && <Check aria-hidden="true" className="ml-auto h-[20px] w-[20px] shrink-0 text-indigo-800" />}
               </span>
             </label>
           );
@@ -79,7 +80,7 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
       </fieldset>
       <span role="status" className="sr-only">{enviando ? "Enviando sua resposta…" : ""}</span>
       {feedback ? (
-        <div ref={retorno} tabIndex={-1} aria-label="Correção da resposta" role="group" className="scroll-mt-24 space-y-1 rounded-xl focus-visible:outline-indigo-700 bg-indigo-50 p-4 text-slate-800">
+        <div ref={retorno} tabIndex={-1} aria-label="Correção da resposta" role="group" className={`${estilos.retorno} scroll-mt-24 space-y-2 rounded-xl p-4 text-slate-900 focus-visible:outline-indigo-700 ${feedback.correta ? "bg-emerald-50" : "bg-amber-50"}`}>
           <p role="status" className="font-semibold">{feedback.correta ? "Você acertou!" : "Resposta incorreta."}</p>
           {feedback.nivelAnterior != null && feedback.nivelAtual != null && (
             <p>Nível neste assunto: {feedback.nivelAnterior} → {feedback.nivelAtual}</p>
@@ -176,7 +177,7 @@ export default function QuestaoDaSessao() {
         {sessao.situacao === "ATIVA" && <Button size="sm" className="min-h-11" variant="outline" disabled={bloqueada}
           onClick={() => acao.mutate("interromper")}><Pause size={15} /> Pausar e sair</Button>}
       </div>
-      <Card>
+      <Card className={estilos.leitura}>
         <CardHeader className="gap-3">
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 first-letter:uppercase">
             {assunto?.nome ?? "Atividade"}
@@ -185,8 +186,8 @@ export default function QuestaoDaSessao() {
             <span aria-live="polite">Questões distintas: {posicao} de até {limiteQuestoes} · Para reaprender: {pendencias}</span>
             {questaoAtual && <Badge variant="secondary">Dificuldade {questaoAtual.dificuldade}</Badge>}
           </div>
-          {repetindo && <p className="font-semibold text-indigo-700">Nova tentativa de uma questão anterior</p>}
-          <Progress value={100 * posicao / limiteQuestoes} className="h-2" aria-label="Questões apresentadas"
+          {repetindo && <p className={`${estilos.orientacao} font-semibold text-indigo-700`}>Nova tentativa de uma questão anterior</p>}
+          <Progress value={100 * posicao / limiteQuestoes} className="h-[8px]" aria-label="Questões apresentadas"
             aria-valuenow={posicao} aria-valuemin={0} aria-valuemax={limiteQuestoes} />
         </CardHeader>
         <CardContent className="space-y-5">

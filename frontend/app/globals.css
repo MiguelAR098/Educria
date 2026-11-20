@@ -30,3 +30,9 @@ body {
   color: #0f172a;
   font-feature-settings: "rlig" 1, "calt" 1;
 }
+
+/* Percentuais preservam o tamanho de fonte escolhido no navegador. */
+html[data-tamanho-texto="Grande"] { font-size: 125%; }
+html[data-tamanho-texto="Muito grande"] { font-size: 150%; }
+
+body { overflow-wrap: anywhere; }

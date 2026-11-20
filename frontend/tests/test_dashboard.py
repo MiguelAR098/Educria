@@ -26,6 +26,7 @@ class ApiDeTeste:
     def __init__(self):
         self.aberta = False
         self.respondida = False
+        self.explicacao = "7 mais 8 é 15."
         self.situacao = "ATIVA"
         self.sessao_anterior = None
         self.falha_turma = False
@@ -56,7 +57,7 @@ class ApiDeTeste:
             return route.fulfill(status=405, json={})
 
         resumo = dict(id=7, assuntoId=4, situacao=self.situacao, questoesApresentadas=1)
-        feedback = dict(alternativa="B", correta=True, explicacao="7 mais 8 é 15.", nivelAnterior=1, nivelAtual=2)
+        feedback = dict(alternativa="B", correta=True, explicacao=self.explicacao, nivelAnterior=1, nivelAtual=2)
         estado = dict(sessao=resumo, questaoAtual=self.questao, feedback=feedback if self.respondida else None)
         indicador = dict(id=7, assunto=ASSUNTO, situacao=self.situacao, iniciadaEm="2026-01-02T15:00:00Z",
                          apresentadas=1, acertos=int(self.respondida), erros=0,
@@ -248,6 +249,168 @@ class DashboardAluno(unittest.TestCase):
         expect(page.get_by_text("Você acertou!")).to_be_visible()
         self.assertEqual(len(tentativas), 2)
 
+    def test_tamanho_texto_persistencia_e_quebra_de_linhas(self):
+        page = self.page
+        api = self.abrir_questao_de_teste()
+        longo = "Leia os valores e justifique sua escolha. " * 9 + "1234567890" * 14
+        api.questao.update(enunciado=longo, alternativaB=longo)
+        api.explicacao = longo
+        page.reload()
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle = page.get_by_label("Tamanho do texto")
+        expect(controle).to_have_value("Normal")
+        opcao = page.locator("fieldset label").nth(1)
+        texto = opcao.get_by_text(longo.strip(), exact=True)
+        for nome, px in [("Normal", 16), ("Grande", 20), ("Muito grande", 24)]:
+            controle.select_option(nome)
+            expect(texto).to_have_css("font-size", f"{px}px")
+            expect(page.locator("#enunciado-atual")).to_have_css("font-size", f"{px * 1.3:g}px")
+        controle.focus()
+        page.keyboard.press("b")
+        page.keyboard.press("2")
+        page.keyboard.press("Escape")
+        expect(page.get_by_role("button", name="Enviar resposta")).to_be_disabled()
+        page.goto("/aluno")
+        page.goto("/aluno/atividade/7")
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        expect(controle).to_have_value("Muito grande")
+        page.reload()
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        expect(controle).to_have_value("Muito grande")
+        page.keyboard.press("Escape")
+        for largura in (320, 375, 768, 1280):
+            page.set_viewport_size({"width": largura, "height": 800})
+            self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+            for item in (texto, page.locator("#enunciado-atual"), page.locator("legend")):
+                self.assertTrue(item.evaluate("e => e.scrollWidth <= e.clientWidth + 1"))
+        page.set_viewport_size({"width": 320, "height": 740})
+        opcao.click()
+        page.get_by_role("button", name="Enviar resposta").click()
+        retorno = page.get_by_role("group", name="Correção da resposta")
+        expect(retorno.get_by_text(longo.strip(), exact=True)).to_have_css("font-size", "24px")
+        self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle.select_option("Normal")
+        expect(retorno).to_have_css("font-size", "16px")
+        page.keyboard.press("Escape")
+
+    def test_ampliacao_emulada_com_texto_muito_grande(self):
+        self.abrir_questao_de_teste()
+        page = self.page
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        page.get_by_label("Tamanho do texto").select_option("Muito grande")
+        page.keyboard.press("Escape")
+        # 640 pixels físicos a 200% disponibilizam 320 pixels CSS para o layout.
+        cdp = self.contexto.new_cdp_session(page)
+        cdp.send("Emulation.setDeviceMetricsOverride", dict(width=320, height=480,
+                 deviceScaleFactor=2, mobile=False))
+        self.assertTrue(page.evaluate("devicePixelRatio === 2 && innerWidth === 320"))
+        self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+        page.locator("fieldset label").nth(1).click()
+        page.get_by_role("button", name="Enviar resposta").click()
+        expect(page.get_by_text("Você acertou!")).to_be_visible()
+        cdp.send("Emulation.setPageScaleFactor", {"pageScaleFactor": 2})
+        page.wait_for_function("visualViewport.scale === 2")
+        expect(page.get_by_text("7 mais 8 é 15.")).to_be_visible()
+
+    def test_refluxo_das_paginas_do_aluno(self):
+        api = ApiDeTeste()
+        api.situacao = "ENCERRADA"
+        api.aberta = True
+        api.sessao_anterior = dict(id=6, assunto=ASSUNTO, iniciadaEm="2026-01-01T15:00:00Z",
+                                   situacao="ENCERRADA", apresentadas=2, respondidas=2, acertos=1, erros=2)
+        self.page.route("**/api/**", api.atender)
+        self.login()
+        controle = self.page.get_by_role("combobox", name="Tamanho do texto")
+        titulo = self.page.get_by_role("heading", name="Minhas matérias")
+        expect(titulo).to_have_css("font-size", "24px")
+        self.page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle.select_option("Grande")
+        self.page.keyboard.press("Escape")
+        expect(titulo).to_have_css("font-size", "30px")
+        expect(self.page.get_by_role("link", name="Fazer atividade")).to_have_css("font-size", "20px")
+        self.page.get_by_role("link", name="Histórico de sessões").click()
+        self.page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        expect(controle).to_have_value("Grande")
+        controle.select_option("Muito grande")
+        self.page.keyboard.press("Escape")
+        for rota, texto in [("/aluno", "Ver evolução"), ("/aluno/atividade", "Iniciar sessão"),
+                            ("/aluno/revisoes", "Futuras (0)"), ("/aluno/historico", "Acertos: 0 · Erros: 0"),
+                            ("/aluno/historico/7", "Indicador")]:
+            self.page.goto(rota)
+            expect(self.page.get_by_text(texto, exact=True).first).to_be_visible()
+            self.page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+            expect(controle).to_have_value("Muito grande")
+            self.page.keyboard.press("Escape")
+            expect(self.page.locator("html")).to_have_css("font-size", "24px")
+            for largura in (320, 375, 768, 1280):
+                self.page.set_viewport_size({"width": largura, "height": 800})
+                self.assertTrue(self.page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+                                f"{rota} em {largura}px")
+
+    def test_painel_leitura_por_teclado(self):
+        page = self.page
+        page.goto("/login")
+        abrir = page.get_by_role("button", name="Configurações de leitura", exact=True)
+        painel = page.get_by_role("dialog", name="Configurações de leitura")
+        for largura in (320, 1280):
+            page.set_viewport_size({"width": largura, "height": 720})
+            expect(painel).to_be_hidden()
+            abrir.focus()
+            page.keyboard.press("Enter")
+            expect(painel).to_be_visible()
+            page.keyboard.press("Tab")
+            controle = painel.get_by_label("Tamanho do texto")
+            expect(controle).to_be_focused()
+            controle.select_option("Muito grande")
+            caixa = painel.bounding_box()
+            self.assertGreaterEqual(caixa["x"], 0)
+            self.assertLessEqual(caixa["x"] + caixa["width"], largura)
+            page.keyboard.press("Escape")
+            expect(painel).to_be_hidden()
+            expect(abrir).to_be_focused()
+
+    def test_tamanho_publico_e_admin(self):
+        page = self.page
+        page.goto("/login")
+        # Preferência já gravada pela versão anterior, exclusiva da atividade.
+        page.evaluate("localStorage.setItem('educria.atividade.tamanhoTexto', 'Grande')")
+        page.reload()
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle = page.get_by_role("combobox", name="Tamanho do texto")
+        expect(controle).to_have_value("Grande")
+        page.keyboard.press("Escape")
+        expect(page.get_by_label("E-mail")).to_have_css("font-size", "17.5px")
+        page.get_by_role("link", name="Cadastre-se gratuitamente").click()
+        page.wait_for_url("**/register")
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle.focus()
+        page.keyboard.press("End")
+        expect(controle).to_have_value("Muito grande")
+        page.keyboard.press("Escape")
+        expect(page.get_by_text("Opcional").first).to_have_css("font-size", "16.5px")
+        for rota in ("/register", "/login", "/admin"):
+            if rota == "/admin":
+                page.evaluate("""localStorage.setItem('educria-auth-storage', JSON.stringify({version:0,
+                    state:{token:'teste',user:{nome:'Ana',email:'ana@example.test',role:'ADMIN'}}}))""")
+            page.goto(rota)
+            expect(page.locator("form").first).to_be_visible()
+            page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+            expect(controle).to_have_count(1)
+            expect(controle).to_have_value("Muito grande")
+            page.keyboard.press("Escape")
+            expect(page.locator("input").first).to_have_css("font-size", "21px")
+            for largura in (320, 375, 768, 1280):
+                page.set_viewport_size({"width": largura, "height": 800})
+                self.assertTrue(page.evaluate("document.documentElement.scrollWidth <= innerWidth"),
+                                f"{rota} em {largura}px")
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle.select_option("Normal")
+        page.get_by_role("button", name="Fechar configurações de leitura").click()
+        expect(page.get_by_role("button", name="Configurações de leitura", exact=True)).to_be_focused()
+        page.reload()
+        expect(page.get_by_label("Nome da Turma")).to_have_css("font-size", "14px")
+
     def test_comparacao_do_assunto_no_resultado(self):
         api = ApiDeTeste()
         self.page.route("**/api/**", api.atender)
@@ -368,11 +531,18 @@ class DashboardAluno(unittest.TestCase):
         expect(page.get_by_text("Resposta incorreta.", exact=True)).to_be_visible()
         enunciado = page.locator("#enunciado-atual")
         enviar = page.get_by_role("button", name="Enviar resposta")
+        page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+        controle = page.get_by_label("Tamanho do texto")
+        controle.select_option("Grande")
+        page.keyboard.press("Escape")
         for _ in range(2):
             anterior = enunciado.inner_text()
             page.get_by_role("button", name="Próxima questão").click()
             expect(enunciado).not_to_have_text(anterior)
             expect(enunciado).not_to_have_text(primeira)
+            page.get_by_role("button", name="Configurações de leitura", exact=True).click()
+            expect(controle).to_have_value("Grande")
+            page.keyboard.press("Escape")
             resolver(True)
         page.get_by_role("button", name="Próxima questão").click()
         expect(enunciado).to_have_text(primeira)

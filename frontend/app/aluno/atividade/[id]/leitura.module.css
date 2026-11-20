@@ -1,0 +1,24 @@
+.leitura {
+  overflow-wrap: anywhere;
+}
+
+.leitura h2 {
+  font-size: 1.3rem;
+  line-height: 1.45;
+}
+
+.leitura legend {
+  max-width: 100%;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.alternativa,
+.retorno,
+.orientacao,
+.leitura [role="alert"],
+.leitura p[role="status"] {
+  min-width: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+}

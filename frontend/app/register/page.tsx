@@ -199,7 +199,7 @@ export default function RegisterPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="matricula">Matrícula</Label>
-                    <span className="text-[11px] text-slate-400">Opcional</span>
+                    <span className="text-[0.6875rem] text-slate-400">Opcional</span>
                   </div>
                   <div className="relative">
                     <Hash className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -218,7 +218,7 @@ export default function RegisterPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="turmaId">ID da Turma</Label>
-                    <span className="text-[11px] text-slate-400">Opcional</span>
+                    <span className="text-[0.6875rem] text-slate-400">Opcional</span>
                   </div>
                   <div className="relative">
                     <Users className="absolute left-3 top-3 h-4 w-4 text-slate-400" />

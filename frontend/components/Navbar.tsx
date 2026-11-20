@@ -29,27 +29,27 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-30 w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-md">
-      <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex min-h-16 max-w-5xl flex-wrap items-center justify-between gap-x-2 gap-y-1 px-4 py-1 sm:px-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm">
+          <div className="flex h-[40px] w-[40px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white shadow-sm">
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
             <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
               EDUCRIA
             </span>
-            <p className="hidden sm:block text-[11px] font-medium text-slate-400 leading-none">
+            <p className="hidden sm:block text-[0.6875rem] font-medium text-slate-600 leading-none">
               Aprendizagem Adaptativa
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 sm:gap-4">
+        <div className="flex max-w-full flex-wrap items-center gap-2 sm:gap-4">
           <div className="flex items-center gap-2.5">
             <Avatar className="h-9 w-9 border border-indigo-200">
               <AvatarFallback>{initials}</AvatarFallback>
             </Avatar>
-            <div className="hidden md:flex flex-col text-right">
+            <div className="hidden min-w-0 md:flex flex-col text-right">
               <span className="text-sm font-semibold text-slate-800 leading-tight">
                 {user?.nome || "Estudante"}
               </span>
@@ -78,6 +78,7 @@ export function Navbar() {
           <Button
             variant="outline"
             size="sm"
+            aria-label="Sair"
             onClick={handleLogout}
             className="text-slate-600 hover:text-red-600 hover:border-red-200 hover:bg-red-50/60 gap-1.5"
           >

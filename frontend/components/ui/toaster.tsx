@@ -11,6 +11,7 @@ export function Toaster() {
       toastOptions={{
         style: {
           borderRadius: "14px",
+          fontSize: "0.8125rem",
         },
       }}
     />

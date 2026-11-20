@@ -40,12 +40,12 @@ function AssuntosDaMateria({ materia }: { materia: Materia }) {
 
   return (
     <Card className="overflow-hidden rounded-[1.25rem]">
-      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0 border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 to-white px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-700">
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0 border-b border-slate-100 bg-gradient-to-r from-indigo-50/80 to-white px-5 py-4">
+        <div className="flex min-w-0 max-w-full items-center gap-3">
+          <span className="grid h-[40px] w-[40px] shrink-0 place-items-center rounded-xl bg-indigo-100 text-indigo-700">
             <BookOpen aria-hidden size={20} />
           </span>
-          <h3 className="break-words text-lg font-bold text-slate-900">{materia.nome}</h3>
+          <h3 className="min-w-0 [overflow-wrap:anywhere] text-lg font-bold text-slate-900">{materia.nome}</h3>
         </div>
         <span className="shrink-0 text-xs font-semibold text-slate-600">
           {materia.totalAssuntos} {materia.totalAssuntos === 1 ? "assunto" : "assuntos"}
@@ -58,7 +58,7 @@ function AssuntosDaMateria({ materia }: { materia: Materia }) {
           <ul className="grid gap-x-8 sm:grid-cols-2">
             {data.map((assunto) => (
               <li key={assunto.id} className="min-w-0 border-b border-slate-100 py-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="text-sm font-medium text-slate-800 first-letter:uppercase">{assunto.nome}</span>
                 <span className="whitespace-nowrap rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
                   Nível {assunto.nivelAtual}/10
@@ -98,7 +98,7 @@ export function CatalogoMaterias() {
       ))}
       <div className="grid gap-3 sm:grid-cols-2">
         {data?.filter((materia) => materia.totalAssuntos === 0).map((materia) => (
-          <div key={materia.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
+          <div key={materia.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3">
             <h3 className="font-semibold text-slate-700">{materia.nome}</h3>
             <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
               <LockKeyhole aria-hidden="true" className="h-3.5 w-3.5" /> Indisponível

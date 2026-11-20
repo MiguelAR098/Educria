@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { TamanhoTexto } from "@/components/TamanhoTexto";
+import { iniciarTamanho } from "@/lib/tamanho-texto";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -21,8 +23,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: iniciarTamanho }} /></head>
       <body className={`${jakarta.className} antialiased min-h-screen bg-slate-50`}>
+        <TamanhoTexto />
         <Providers>{children}</Providers>
       </body>
     </html>

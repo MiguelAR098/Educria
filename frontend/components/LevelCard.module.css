@@ -1,6 +1,7 @@
 .card {
   position: relative;
   isolation: isolate;
+  container-type: inline-size;
   display: flex;
   align-items: center;
   min-height: 12rem;
@@ -43,4 +44,9 @@
   .art { right: 19%; transform: scale(.76); }
   .copy { padding: 1.25rem; }
   .card { min-height: 10rem; }
+}
+
+@container (max-width: 14em) {
+  .copy { max-width: 100%; }
+  .art { display: none; }
 }
