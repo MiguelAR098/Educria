@@ -15,8 +15,9 @@ public interface AssuntoRepository extends Repository<Assunto, Long> {
 
     @Query("""
             select s from Assunto s left join DesempenhoPorAssunto d on d.assunto = s and d.aluno.id = :alunoId
-            where exists (select q.id from Questao q where q.assunto = s and q.atividade.ativa = true
-                          and q.dificuldade is not null and not exists (
+            where exists (select q.id from Questao q where q.assunto = s and
+            """ + QuestaoRepository.QUESTAO_ELEGIVEL + """
+                          and not exists (
                               select r.id from RepeticaoEspacada r where r.aluno.id = :alunoId
                               and r.questao = q and r.proximaRevisao > :hoje))
             order by coalesce(d.nivelAtual, 1), s.id
