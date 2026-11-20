@@ -50,6 +50,19 @@ public class HistoricoSessaoRepository {
                 .param("email", email).param("id", id).query(LER).optional();
     }
 
+    public Optional<Indicadores> anteriorComparavel(String email, long id) {
+        return jdbc.sql(INDICADORES + """
+                and s.id = (
+                    select candidata.id
+                    from sessoes_estudo atual
+                    join sessoes_estudo candidata on candidata.aluno_id = atual.aluno_id
+                        and candidata.assunto_id = atual.assunto_id and candidata.id < atual.id
+                    where atual.id = :id and atual.situacao = 'ENCERRADA' and candidata.situacao = 'ENCERRADA'
+                    order by candidata.id desc limit 1
+                )
+                """ + AGRUPAR).param("email", email).param("id", id).query(LER).optional();
+    }
+
     public List<Item> questoes(String email, long id) {
         return jdbc.sql("""
                 select sq.indice + 1 as numero, q.enunciado, r.resposta_dada as alternativa, r.correta, r.passo

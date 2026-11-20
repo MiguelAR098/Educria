@@ -27,7 +27,7 @@ public class HistoricoSessaoService {
     public ResultadoSessao resultado(String email, long id) {
         var sessao = historico.obter(email, id)
                 .orElseThrow(() -> new ApiException("Sessão não encontrada", HttpStatus.NOT_FOUND));
-        var anterior = historico.listar(email, id, 1).stream().findFirst().orElse(null);
+        var anterior = historico.anteriorComparavel(email, id).orElse(null);
         return new ResultadoSessao(sessao, anterior, historico.revisoes(email, id), historico.questoes(email, id));
     }
 }

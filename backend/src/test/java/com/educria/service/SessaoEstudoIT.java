@@ -481,8 +481,15 @@ class SessaoEstudoIT {
         String outro = cadastrar("outro-historico");
         var alheia = call(post(BASE).content(body(Map.of("assuntoId", assunto))), outro, 201);
         long outroId = alheia.at("/sessao/id").asLong();
+        call(put(BASE + "/" + outroId + "/encerrar"), outro, 200);
         var segunda = abrir(assunto, 201);
         long id2 = segunda.at("/sessao/id").asLong();
+        assertTrue(call(get(BASE + "/" + id2 + "/resultado"), token, 200).get("anterior").isNull());
+        call(put(BASE + "/" + id2 + "/interromper"), token, 200);
+        var parcial = call(get(BASE + "/" + id2 + "/resultado"), token, 200);
+        assertTrue(parcial.get("anterior").isNull());
+        assertEquals(1, parcial.at("/sessao/apresentadas").asInt());
+        call(put(BASE + "/" + id2 + "/encerrar"), token, 200);
         var resultado = call(get(BASE + "/" + id2 + "/resultado"), token, 200);
         assertEquals(id1, resultado.at("/anterior/id").asLong());
         assertEquals(1, resultado.at("/anterior/acertos").asInt());
@@ -499,6 +506,43 @@ class SessaoEstudoIT {
         for (var caminho : List.of(BASE + "/historico", BASE + "/" + id1 + "/resultado")) {
             int status = mvc.perform(get(caminho)).andReturn().getResponse().getStatus();
             assertTrue(status == 403 || status == 401);
+        }
+    }
+
+    private long inserirSessao(long assuntoId, String situacao) {
+        return id("""
+                insert into sessoes_estudo(aluno_id, assunto_id, situacao, iniciada_em, atualizada_em)
+                values (?, ?, ?, now(), now()) returning id
+                """, usuarios.getFirst(), assuntoId, situacao);
+    }
+
+    @Test
+    void comparaPorIdDeAssuntoAlemDaPrimeiraPagina() throws Exception {
+        inserirSessao(assunto, "ENCERRADA");
+        long anterior = inserirSessao(assunto, "ENCERRADA");
+        long outraMateria = id("insert into materias(nome) values (?) returning id", prefixo + "-outra");
+        try {
+            long homonimo = id("insert into assuntos(materia_id,nome) values (?, 'Assunto teste') returning id", outraMateria);
+            for (int n = 0; n < 25; n++) inserirSessao(homonimo, "ENCERRADA");
+            long atual = inserirSessao(assunto, "ENCERRADA");
+            inserirSessao(assunto, "ENCERRADA");
+            assertEquals(anterior, call(get(BASE + "/" + atual + "/resultado"), token, 200).at("/anterior/id").asLong());
+        } finally {
+            db.update("delete from sessoes_estudo where assunto_id in (select id from assuntos where materia_id=?)", outraMateria);
+            db.update("delete from assuntos where materia_id=?", outraMateria);
+            db.update("delete from materias where id=?", outraMateria);
+        }
+    }
+
+    @Test
+    void primeiraConclusaoIgnoraSessoesIncompletasDeQualquerAssunto() throws Exception {
+        for (long anterior : List.of(vazio, assunto)) {
+            for (String situacao : List.of("ATIVA", "INTERROMPIDA")) {
+                long parcial = inserirSessao(anterior, situacao);
+                long atual = inserirSessao(assunto, "ENCERRADA");
+                assertTrue(call(get(BASE + "/" + atual + "/resultado"), token, 200).get("anterior").isNull());
+                db.update("delete from sessoes_estudo where id in (?, ?)", parcial, atual);
+            }
         }
     }
 
@@ -561,6 +605,8 @@ class SessaoEstudoIT {
         assertEquals(10, resultado.at("/sessao/acertos").asInt());
         assertEquals(4, resultado.at("/sessao/erros").asInt());
         assertEquals(14, resultado.get("questoes").size());
+        long seguinte = inserirSessao(assunto, "ENCERRADA");
+        assertEquals(resultado.get("sessao"), call(get(BASE + "/" + seguinte + "/resultado"), token, 200).get("anterior"));
         assertEquals(10, resultado.get("revisoes").size());
         assertEquals(8, id("select total_acertos from desempenho_por_assunto where aluno_id=? and assunto_id=?",
                 usuarios.getFirst(), assunto));

@@ -74,8 +74,10 @@ export default function ResultadoPage() {
             {!dados.questoes && <p>Atualize o backend para ver as respostas por questão.</p>}
           </CardContent>
         </Card>
-        <Card><CardHeader><h2 className="text-xl font-bold">Comparação com a sessão anterior</h2></CardHeader>
-          <CardContent className="space-y-3">{dados.anterior ? <>
+        <Card><CardHeader><h2 className="text-xl font-bold">Comparação com a sessão anterior deste assunto</h2></CardHeader>
+          <CardContent className="space-y-3">{dados.sessao.situacao !== "ENCERRADA" ? (
+            <p className="text-sm text-slate-600">A comparação ficará disponível após o encerramento desta sessão.</p>
+          ) : dados.anterior ? <>
             <p className="text-sm"><strong className="capitalize">{dados.anterior.assunto}</strong> · {inicio(dados.anterior)}</p>
             <table className="w-full text-left text-sm"><thead><tr className="border-b text-slate-600">
               <th scope="col" className="py-2">Indicador</th><th scope="col">Esta sessão</th><th scope="col">Anterior</th>
@@ -84,7 +86,7 @@ export default function ResultadoPage() {
                 <tr key={campo} className="border-b last:border-0"><th scope="row" className="py-2 font-medium">{nome}</th>
                   <td>{dados.sessao[campo]}</td><td>{dados.anterior?.[campo]}</td></tr>))}
             </tbody></table>
-          </> : <p>Esta é a sua primeira sessão.</p>}</CardContent>
+          </> : <p>Esta é sua primeira sessão concluída neste assunto. Faça outra sessão para acompanhar sua evolução.</p>}</CardContent>
         </Card>
         <Card><CardHeader><h2 className="text-xl font-bold">Questões desta sessão para revisão</h2></CardHeader>
           <CardContent>{dados.revisoes.length ? <>

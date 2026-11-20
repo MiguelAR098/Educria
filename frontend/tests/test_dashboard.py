@@ -27,6 +27,7 @@ class ApiDeTeste:
         self.aberta = False
         self.respondida = False
         self.situacao = "ATIVA"
+        self.sessao_anterior = None
         self.falha_turma = False
         self.pendentes = []
         self.amanha = (datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat()
@@ -78,7 +79,7 @@ class ApiDeTeste:
             base + "/7/interromper": estado,
             base + "/7/questoes/12/resposta": feedback,
             base + "/historico": dict(sessoes=[indicador] if self.aberta else [], proximoCursor=None),
-            base + "/7/resultado": dict(sessao=indicador, anterior=None, revisoes=[revisao],
+            base + "/7/resultado": dict(sessao=indicador, anterior=self.sessao_anterior, revisoes=[revisao],
                                         questoes=[dict(numero=1, enunciado=self.questao["enunciado"],
                                                        alternativa="B", correta=True)]),
         }
@@ -246,6 +247,28 @@ class DashboardAluno(unittest.TestCase):
         enviar.click()
         expect(page.get_by_text("Você acertou!")).to_be_visible()
         self.assertEqual(len(tentativas), 2)
+
+    def test_comparacao_do_assunto_no_resultado(self):
+        api = ApiDeTeste()
+        self.page.route("**/api/**", api.atender)
+        self.login()
+        self.page.goto("/aluno/historico/7")
+        titulo = self.page.get_by_role("heading", name="Comparação com a sessão anterior deste assunto")
+        tabela = self.page.get_by_role("table")
+        expect(titulo).to_be_visible()
+        expect(self.page.get_by_text("A comparação ficará disponível", exact=False)).to_be_visible()
+        expect(tabela).to_have_count(0)
+
+        api.situacao = "ENCERRADA"
+        self.page.reload()
+        expect(self.page.get_by_text("Esta é sua primeira sessão concluída neste assunto.", exact=False)).to_be_visible()
+        expect(tabela).to_have_count(0)
+
+        api.sessao_anterior = dict(id=6, assunto=ASSUNTO, iniciadaEm="2026-01-01T15:00:00Z",
+                                   situacao="ENCERRADA", apresentadas=2, respondidas=2, acertos=2, erros=1)
+        self.page.reload()
+        expect(tabela.get_by_role("row", name="Erros 0 1")).to_be_visible()
+        expect(tabela.get_by_role("row", name="Apresentadas 1 2")).to_be_visible()
 
     def test_fluxo_no_navegador(self):
         api = ApiDeTeste()
