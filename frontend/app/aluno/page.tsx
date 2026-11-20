@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, CheckCheck, ChevronRight, Clock3, History, Play, RefreshCw } from "lucide-react";
+import { BarChart3, CalendarDays, CheckCheck, ChevronRight, Clock3, History, Play, RefreshCw } from "lucide-react";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
@@ -49,6 +49,7 @@ function Painel() {
         <nav aria-label="Atalhos do aluno" className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-slate-100 pt-3 text-sm font-semibold">
           <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/revisoes"><CalendarDays aria-hidden size={16} /> Minhas revisões</Link>
           <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/historico"><History aria-hidden size={16} /> Histórico de sessões</Link>
+          <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/evolucao"><BarChart3 aria-hidden size={16} /> Evolução da aprendizagem</Link>
           <button type="button" aria-label="Atualizar dados" title="Atualizar dados" disabled={atualizando} onClick={() => cache.refetchQueries({ type: "active" })}
             className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-indigo-50 disabled:opacity-60">
             <RefreshCw aria-hidden size={16} className={atualizando ? "motion-safe:animate-spin" : ""} />

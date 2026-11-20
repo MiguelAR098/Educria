@@ -12,6 +12,9 @@ export function EvolucaoAssunto({ assuntoId }: { assuntoId: number }) {
   const itens = historico.data?.pages.flatMap((p) => p.sessoes).filter((s) => ids.has(s.id));
   const pronto = sessoes.isSuccess && historico.isSuccess;
   return <div className="mt-3 border-l-2 border-indigo-200 pl-3 text-sm">
+    <Link className="mb-2 inline-block rounded font-semibold text-indigo-700 underline" href={`/aluno/evolucao?assuntoId=${assuntoId}`}>
+      Relatório de 30 dias
+    </Link>
     <EstadoConsulta consulta={sessoes} recurso="as sessões do assunto" />
     <EstadoConsulta consulta={historico} recurso="a evolução" />
     {pronto && ids.size === 0 && <p>Nenhuma sessão neste assunto.</p>}
