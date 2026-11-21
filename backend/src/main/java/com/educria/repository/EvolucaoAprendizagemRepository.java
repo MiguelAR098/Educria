@@ -19,6 +19,7 @@ public class EvolucaoAprendizagemRepository {
     private static final String AGREGAR = """
             with eventos as (
                 select s.assunto_id, null::date as dia, null::bigint as questao_id, null::boolean as correta,
+                       false as erro_contabilizado,
                        null::boolean as primeira, null::integer as nivel_anterior, null::integer as nivel_atual,
                        null::timestamp as respondido_em, null::bigint as resposta_id
                 from sessoes_estudo s
@@ -26,6 +27,8 @@ public class EvolucaoAprendizagemRepository {
                   and (:assuntoId is null or s.assunto_id = :assuntoId)
                 union all
                 select coalesce(s.assunto_id, q.assunto_id), r.respondido_em::date, r.questao_id, r.correta,
+            """ + ErrosDiarios.PRIMEIRO_ERRO + """
+                       as erro_contabilizado,
                        case when s.id is not null then not exists (
                            select 1 from respostas_aluno anterior
                            where anterior.sessao_id = r.sessao_id and anterior.questao_id = r.questao_id
@@ -42,7 +45,9 @@ public class EvolucaoAprendizagemRepository {
             select grouping(a.id, e.dia) = 3 as geral, a.id as assunto_id, a.nome, e.dia,
                    count(*) filter (where e.questao_id is null) as sessoes_iniciadas,
                    count(e.questao_id) as tentativas, count(distinct e.questao_id) as questoes_unicas,
-                   count(*) filter (where e.correta) as acertos, count(*) filter (where not e.correta) as erros,
+                   count(*) filter (where e.correta) as acertos,
+                   count(*) filter (where not e.correta) as tentativas_incorretas,
+                   count(*) filter (where e.erro_contabilizado) as erros,
                    count(*) filter (where not e.primeira) as tentativas_reaprendizagem,
                    count(*) filter (where e.primeira) as primeiras_tentativas,
                    count(*) filter (where e.primeira and e.correta) as primeiras_corretas,
@@ -70,7 +75,8 @@ public class EvolucaoAprendizagemRepository {
     }
 
     public record Linha(boolean geral, Long assuntoId, String nome, LocalDate dia,
-                        long sessoesIniciadas, long tentativas, long questoesUnicas, long acertos, long erros,
+                        long sessoesIniciadas, long tentativas, long questoesUnicas, long acertos,
+                        long tentativasIncorretas, long erros,
                         long tentativasReaprendizagem, long primeirasTentativas, long primeirasCorretas,
                         Integer nivelInicialObservado, Integer nivelFinalObservado) {}
 }

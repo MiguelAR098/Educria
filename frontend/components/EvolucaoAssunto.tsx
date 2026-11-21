@@ -22,7 +22,7 @@ export function EvolucaoAssunto({ assuntoId }: { assuntoId: number }) {
       <ul className="space-y-2">{itens.map((s) => (
         <li key={s.id}>
           <Link className="text-indigo-700 underline" href={`/aluno/historico/${s.id}`}>{inicio(s)}</Link>
-          <p>{s.acertos + s.erros === 0 ? "Aguardando a primeira resposta." :
+          <p>{s.tentativas === 0 ? "Aguardando a primeira resposta." :
             `Nível inicial: ${s.nivelAntes ?? "sem registro"} · Nível final: ${s.nivelDepois ?? "sem registro"}`}</p>
         </li>
       ))}</ul>

@@ -131,6 +131,38 @@ class SessaoEstudoIT {
     }
 
     @Test
+    void consultaSessaoLegadaSemQuestoesEPermiteEncerrar() throws Exception {
+        long sessao = inserirSessao(assunto, "ATIVA");
+        String rota = BASE + "/" + sessao;
+
+        var estado = call(get(rota), token, 200);
+        assertTrue(estado.get("questaoAtual").isNull());
+        assertFalse(estado.has("feedback"));
+        assertEquals(0, estado.get("pendencias").asInt());
+        assertEquals("ENCERRADA", call(put(rota + "/encerrar"), token, 200).at("/sessao/situacao").asText());
+    }
+
+    @Test
+    void ignoraRespostaComTitularDivergenteNaConsultaERejeitaPassoOcupado() throws Exception {
+        cadastrar("outro");
+        var estado = abrir(assunto, 201);
+        long sessao = estado.at("/sessao/id").asLong();
+        long questao = estado.at("/questaoAtual/id").asLong();
+        db.update("""
+                insert into respostas_aluno (aluno_id, sessao_id, questao_id, passo, resposta_dada, correta, reaprender)
+                values (?, ?, ?, 1, 'B', false, true)
+                """, usuarios.getLast(), sessao, questao);
+
+        var consultada = call(get(BASE + "/" + sessao), token, 200);
+        assertFalse(consultada.has("feedback"));
+        assertEquals(0, consultada.get("pendencias").asInt());
+        call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 409);
+        call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "B"))), token, 409);
+        assertEquals(0, call(get(BASE + "/" + sessao + "/resultado"), token, 200).at("/sessao/tentativas").asInt());
+        assertEquals(1, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
+    }
+
+    @Test
     void recomendacaoUsaNivelDoTitularELimitaADezQuestoesUnicas() throws Exception {
         db.update("update desempenho_por_assunto set nivel_atual=8 where aluno_id=? and assunto_id<>?",
                 usuarios.getFirst(), assunto);
@@ -606,11 +638,14 @@ class SessaoEstudoIT {
         assertEquals(10, vistas.size());
         call(put(rota + "/questoes/15"), token, 409);
         assertEquals(0, call(put(rota + "/encerrar"), token, 200).get("pendencias").asInt());
+        db.update("update respostas_aluno set respondido_em=timestamp '2026-12-31 12:00:00' where sessao_id=?", sessao);
         var resultado = call(get(rota + "/resultado"), token, 200);
         assertEquals(10, resultado.at("/sessao/apresentadas").asInt());
         assertEquals(10, resultado.at("/sessao/respondidas").asInt());
         assertEquals(10, resultado.at("/sessao/acertos").asInt());
-        assertEquals(4, resultado.at("/sessao/erros").asInt());
+        assertEquals(14, resultado.at("/sessao/tentativas").asInt());
+        assertEquals(4, resultado.at("/sessao/tentativasIncorretas").asInt());
+        assertEquals(2, resultado.at("/sessao/erros").asInt());
         assertEquals(14, resultado.get("questoes").size());
         long seguinte = inserirSessao(assunto, "ENCERRADA");
         assertEquals(resultado.get("sessao"), call(get(BASE + "/" + seguinte + "/resultado"), token, 200).get("anterior"));
@@ -629,7 +664,6 @@ class SessaoEstudoIT {
                 """, atividade, atividade);
         db.update("update desempenho_por_assunto set nivel_atual=6 where aluno_id=? and assunto_id=?",
                 usuarios.getFirst(), assunto);
-        when(relogio.instant()).thenReturn(Instant.now().plusSeconds(300));
 
         var estado = abrir(assunto, 201);
         long sessao = estado.at("/sessao/id").asLong();
@@ -659,8 +693,14 @@ class SessaoEstudoIT {
                 assertEquals("Explicação", feedback.get("explicacao").asText());
             }
             if (passo == 2) {
+                var antesDaPausa = call(get(rota + "/resultado"), token, 200).get("sessao");
                 assertEquals(feedback, call(put(rota + "/interromper"), token, 200).get("feedback"));
+                var pausada = call(get(rota + "/resultado"), token, 200).get("sessao");
+                for (String campo : List.of("tentativas", "tentativasIncorretas", "erros")) {
+                    assertEquals(antesDaPausa.get(campo), pausada.get(campo));
+                }
                 assertEquals(feedback, call(put(rota + "/retomar"), token, 200).get("feedback"));
+                assertEquals(antesDaPausa, call(get(rota + "/resultado"), token, 200).get("sessao"));
             }
             if (passo < 4) estado = call(put(rota + "/questoes/" + (passo + 1)), token, 200);
         }
@@ -669,12 +709,16 @@ class SessaoEstudoIT {
         assertEquals(4, id("select count(*) from respostas_aluno where sessao_id=? and not correta", sessao));
         assertEquals(0, id("select count(*) from repeticao_espacada where aluno_id=?", usuarios.getFirst()));
         call(put(rota + "/encerrar"), token, 409);
+        db.update("update respostas_aluno set respondido_em=timestamp '2026-12-31 12:00:00' where sessao_id=?", sessao);
         var historico = call(get(rota + "/resultado"), token, 200).get("sessao");
         assertEquals(0, historico.get("acertos").asInt());
-        assertEquals(4, historico.get("erros").asInt());
+        assertEquals(4, historico.get("tentativas").asInt());
+        assertEquals(4, historico.get("tentativasIncorretas").asInt());
+        assertEquals(1, historico.get("erros").asInt());
         var evolucao = call(get("/api/aluno/evolucao").param("assuntoId", Long.toString(assunto)), token, 200).get("resumo");
         assertEquals(4, evolucao.get("tentativas").asInt());
-        assertEquals(4, evolucao.get("erros").asInt());
+        assertEquals(4, evolucao.get("tentativasIncorretas").asInt());
+        assertEquals(1, evolucao.get("erros").asInt());
         assertEquals(3, evolucao.get("tentativasReaprendizagem").asInt());
         assertEquals(0, evolucao.get("acertos").asInt());
 
@@ -690,7 +734,7 @@ class SessaoEstudoIT {
         assertFalse(acerto.has("errosDaQuestao"));
         assertEquals(0, call(put(rota + "/encerrar"), token, 200).get("pendencias").asInt());
 
-        when(relogio.instant()).thenReturn(Instant.now().plusSeconds(172_800));
+        when(relogio.instant()).thenReturn(Instant.parse("2027-01-02T03:00:00Z"));
         var nova = abrir(assunto, 201);
         assertEquals(estado.at("/questaoAtual/id"), nova.at("/questaoAtual/id"));
         var reinicio = call(put(rotaResposta(nova)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200);

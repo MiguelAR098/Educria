@@ -4,6 +4,7 @@ import com.educria.domain.entity.Usuario;
 import com.educria.domain.enums.Perfil;
 import com.educria.dto.RelatorioEvolucao;
 import com.educria.dto.RelatorioEvolucao.Dia;
+import com.educria.dto.ResultadoSessao;
 import com.educria.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -63,9 +64,9 @@ class EvolucaoAprendizagemIT {
 
         assertEquals(INICIO, relatorio.dataInicial());
         assertEquals(HOJE, relatorio.dataFinal());
-        assertEquals(INICIO.datesUntil(HOJE.plusDays(1)).map(data -> new Dia(data, 0, 0, 0)).toList(),
+        assertEquals(INICIO.datesUntil(HOJE.plusDays(1)).map(data -> new Dia(data, 0, 0, 0, 0)).toList(),
                 relatorio.evolucaoDiaria());
-        assertTotais(relatorio, 0, 0, 0, 0, 0, 0, null);
+        assertTotais(relatorio, 0, 0, 0, 0, 0, 0, 0, null);
         assertTrue(relatorio.assuntos().isEmpty());
     }
 
@@ -103,24 +104,77 @@ class EvolucaoAprendizagemIT {
         responder(outro, alheia, deOutroAssunto, 1, true, "2026-12-20T09:00:00", 4, 5);
 
         var relatorio = ler(get(ROTA).param("alunoId", Long.toString(outro.id())), titular);
-        assertTotais(relatorio, 3, 6, 4, 2, 2, 3, "66.67");
-        assertEquals(new Dia(INICIO, 5, 3, 2), relatorio.evolucaoDiaria().getFirst());
-        assertEquals(new Dia(HOJE, 1, 1, 0), relatorio.evolucaoDiaria().getLast());
+        assertTotais(relatorio, 3, 6, 4, 2, 1, 2, 3, "66.67");
+        assertEquals(new Dia(INICIO, 5, 3, 2, 1), relatorio.evolucaoDiaria().getFirst());
+        assertEquals(new Dia(HOJE, 1, 1, 0, 0), relatorio.evolucaoDiaria().getLast());
         assertEquals(0, relatorio.evolucaoDiaria().get(18).tentativas());
         assertEquals(List.of(fracoes, homonimo), relatorio.assuntos().stream()
                 .map(RelatorioEvolucao.Assunto::assuntoId).toList());
-        assertEquals(new RelatorioEvolucao.Assunto(fracoes, "Frações", 2, 6, 4, 2, 2,
+        assertEquals(new RelatorioEvolucao.Assunto(fracoes, "Frações", 2, 6, 4, 2, 1, 2,
                 new BigDecimal("66.67"), 2, 10), relatorio.assuntos().getFirst());
-        assertEquals(new RelatorioEvolucao.Assunto(homonimo, "Frações", 1, 0, 0, 0, 0,
+        assertEquals(new RelatorioEvolucao.Assunto(homonimo, "Frações", 1, 0, 0, 0, 0, 0,
                 null, null, null), relatorio.assuntos().getLast());
-        assertTotais(ler(get(ROTA), outro), 1, 1, 1, 0, 1, 0, "100.00");
+        assertTotais(ler(get(ROTA), outro), 1, 1, 1, 0, 0, 1, 0, "100.00");
 
         var filtrado = ler(get(ROTA).param("assuntoId", Long.toString(fracoes)), titular);
-        assertTotais(filtrado, 2, 6, 4, 2, 2, 3, "66.67");
+        assertTotais(filtrado, 2, 6, 4, 2, 1, 2, 3, "66.67");
         assertEquals(List.of(relatorio.assuntos().getFirst()), filtrado.assuntos());
         var semRespostas = ler(get(ROTA).param("assuntoId", Long.toString(homonimo)), titular);
-        assertTotais(semRespostas, 1, 0, 0, 0, 0, 0, null);
+        assertTotais(semRespostas, 1, 0, 0, 0, 0, 0, 0, null);
         assertTrue(semRespostas.evolucaoDiaria().stream().allMatch(dia -> dia.tentativas() == 0));
+    }
+
+    @Test
+    void atribuiOErroAoPrimeiroEventoMesmoComEmpateEFiltroPorOutroAssunto() throws Exception {
+        var titular = aluno();
+        var outro = aluno();
+        long fracoes = assunto("Frações");
+        long proporcao = assunto("Proporção");
+        long compartilhada = questao(fracoes);
+        long distinta = questao(fracoes);
+        long maisAntiga = sessao(titular, fracoes, "2026-12-02T12:00:00Z");
+        long maisNova = sessao(titular, proporcao, "2026-12-02T13:00:00Z");
+        long outroDia = sessao(titular, fracoes, "2026-12-03T03:00:00Z");
+        long alheia = sessao(outro, fracoes, "2026-12-02T12:00:00Z");
+        apresentar(maisAntiga, compartilhada, distinta);
+        // Simula a mesma questão registrada em assuntos diferentes no histórico.
+        apresentar(maisNova, compartilhada);
+        apresentar(outroDia, compartilhada);
+        apresentar(alheia, compartilhada);
+
+        String fimDoDia = "2026-12-02T23:59:59.999999";
+        responder(titular, maisNova, compartilhada, 1, false, fimDoDia, 3, 3);
+        responder(titular, maisAntiga, compartilhada, 1, false, fimDoDia, 2, 2);
+        responder(titular, maisAntiga, compartilhada, 2, false, fimDoDia, 2, 2);
+        responder(titular, maisAntiga, compartilhada, 3, true, fimDoDia, 2, 2);
+        responder(titular, maisAntiga, distinta, 4, false, fimDoDia, 2, 1);
+        responder(titular, outroDia, compartilhada, 1, false, "2026-12-03T00:00:00", 1, 1);
+        responder(outro, alheia, compartilhada, 1, false, fimDoDia, 1, 1);
+
+        var geral = ler(get(ROTA), titular);
+        assertTotais(geral, 3, 6, 1, 5, 3, 2, 2, "0.00");
+        assertEquals(new Dia(INICIO, 5, 1, 4, 2), geral.evolucaoDiaria().getFirst());
+        assertEquals(new Dia(INICIO.plusDays(1), 1, 0, 1, 1), geral.evolucaoDiaria().get(1));
+        var filtrado = ler(get(ROTA).param("assuntoId", Long.toString(fracoes)), titular);
+        assertTotais(filtrado, 2, 5, 1, 4, 2, 2, 2, "0.00");
+        assertEquals(2, filtrado.assuntos().getFirst().erros());
+        assertTotais(ler(get(ROTA), outro), 1, 1, 0, 1, 1, 1, 0, "0.00");
+
+        var antiga = resultado(maisAntiga, titular);
+        assertEquals(4, antiga.sessao().tentativas());
+        assertEquals(3, antiga.sessao().tentativasIncorretas());
+        assertEquals(1, antiga.sessao().erros());
+        assertEquals(4, antiga.questoes().size());
+        var nova = resultado(maisNova, titular);
+        assertEquals(1, nova.sessao().erros());
+        var diaSeguinte = resultado(outroDia, titular);
+        assertEquals(1, diaSeguinte.sessao().erros());
+        assertEquals(antiga.sessao(), diaSeguinte.anterior());
+        assertEquals(geral.resumo().erros(), antiga.sessao().erros() + nova.sessao().erros() + diaSeguinte.sessao().erros());
+        var pagina = json.readValue(mvc.perform(autenticar(get("/api/aluno/sessoes/historico")
+                        .param("antesDe", Long.toString(outroDia)), titular)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray(), ResultadoSessao.Historico.class);
+        assertEquals(List.of(nova.sessao(), antiga.sessao()), pagina.sessoes());
     }
 
     @Test
@@ -131,15 +185,17 @@ class EvolucaoAprendizagemIT {
         long sessao = sessao(titular, assunto, "2026-12-25T12:00:00Z");
         apresentar(sessao, questao);
         responder(titular, sessao, questao, 1, false, "2026-12-25T09:01:00", null, null);
-        responder(titular, null, questao, null, true, "2026-12-25T09:02:00", null, null);
+        responder(titular, null, questao, null, false, "2026-12-25T09:00:00", null, null);
         responder(titular, null, questao(null), null, true, "2026-12-25T09:03:00", null, null);
 
         var relatorio = ler(get(ROTA), titular);
 
-        assertTotais(relatorio, 1, 3, 2, 1, 2, 0, "0.00");
-        assertEquals(List.of(new RelatorioEvolucao.Assunto(assunto, "Equações", 1, 2, 1, 1, 1,
+        assertTotais(relatorio, 1, 3, 1, 2, 1, 2, 0, "0.00");
+        assertEquals(List.of(new RelatorioEvolucao.Assunto(assunto, "Equações", 1, 2, 0, 2, 1, 1,
                 new BigDecimal("0.00"), null, null)), relatorio.assuntos());
-        assertEquals(new Dia(LocalDate.of(2026, 12, 25), 3, 2, 1), relatorio.evolucaoDiaria().get(23));
+        assertEquals(new Dia(LocalDate.of(2026, 12, 25), 3, 1, 2, 1), relatorio.evolucaoDiaria().get(23));
+        assertEquals(1, resultado(sessao, titular).sessao().tentativasIncorretas());
+        assertEquals(0, resultado(sessao, titular).sessao().erros());
     }
 
     @Test
@@ -152,7 +208,7 @@ class EvolucaoAprendizagemIT {
                 .andExpect(status().isNotFound());
 
         var relatorio = ler(get(ROTA).param("assuntoId", Long.toString(assunto("Geometria"))), titular);
-        assertTotais(relatorio, 0, 0, 0, 0, 0, 0, null);
+        assertTotais(relatorio, 0, 0, 0, 0, 0, 0, 0, null);
         assertTrue(relatorio.assuntos().isEmpty());
     }
 
@@ -173,9 +229,14 @@ class EvolucaoAprendizagemIT {
         return pedido.header(HttpHeaders.AUTHORIZATION, "Bearer " + titular.token());
     }
 
-    private void assertTotais(RelatorioEvolucao relatorio, long sessoes, long tentativas, long acertos, long erros,
+    private ResultadoSessao resultado(long sessao, Identidade titular) throws Exception {
+        return json.readValue(mvc.perform(autenticar(get("/api/aluno/sessoes/{id}/resultado", sessao), titular))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), ResultadoSessao.class);
+    }
+
+    private void assertTotais(RelatorioEvolucao relatorio, long sessoes, long tentativas, long acertos, long incorretas, long erros,
                               long unicas, long reaprendizagens, String taxa) {
-        assertEquals(new RelatorioEvolucao.Resumo(sessoes, tentativas, acertos, erros, unicas, reaprendizagens,
+        assertEquals(new RelatorioEvolucao.Resumo(sessoes, tentativas, acertos, incorretas, erros, unicas, reaprendizagens,
                 taxa == null ? null : new BigDecimal(taxa)), relatorio.resumo());
     }
 

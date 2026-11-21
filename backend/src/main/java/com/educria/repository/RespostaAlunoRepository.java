@@ -10,7 +10,9 @@ import java.util.Optional;
 
 public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Long> {
     Optional<RespostaAluno> findBySessaoIdAndPasso(Long sessao, int passo);
-    Optional<RespostaAluno> findFirstBySessaoIdAndQuestaoIdOrderByPasso(Long sessao, Long questao);
+    Optional<RespostaAluno> findFirstBySessaoIdAndQuestaoIdAndAlunoIdOrderByPasso(Long sessao, Long questao, Long aluno);
+    Optional<RespostaAluno> findBySessaoIdAndPassoAndAlunoId(Long sessao, int passo, Long aluno);
+    boolean existsBySessaoIdAndPasso(Long sessao, int passo);
 
     @Query("""
             select count(r) from RespostaAluno r
@@ -27,11 +29,11 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
 
     @Query(value = """
             select questao_id as questao, max(passo) as "ultimoPasso"
-            from respostas_aluno where sessao_id = :sessao
+            from respostas_aluno where sessao_id = :sessao and aluno_id = :aluno
             group by questao_id having bool_or(reaprender) and not bool_or(correta)
             order by max(passo)
             """, nativeQuery = true)
-    List<Pendencia> fila(@Param("sessao") Long sessao);
+    List<Pendencia> fila(@Param("sessao") Long sessao, @Param("aluno") Long aluno);
 
     List<RespostaAluno> findByAlunoId(Long alunoId);
 }

@@ -98,7 +98,9 @@ function Painel() {
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-sm"><strong className="capitalize text-slate-900">{s.assunto}</strong>
                     <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-800">{situacoes[s.situacao]}</span></p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">{inicio(s)} · Acertos: {s.acertos} · Erros: {s.erros}</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                    {inicio(s)} · Acertos: {s.acertos} · Erros contabilizados: {s.erros}
+                  </p>
                 </div><ChevronRight aria-hidden size={16} className="shrink-0 text-indigo-600" />
               </Link></li>
             ))}</ul>

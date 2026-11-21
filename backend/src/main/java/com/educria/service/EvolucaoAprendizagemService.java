@@ -45,19 +45,20 @@ public class EvolucaoAprendizagemService {
         var fimExclusivo = hoje.plusDays(1);
         var linhas = evolucao.agregar(aluno.getId(), assuntoId, inicio, fimExclusivo, relogio.getZone());
         var geral = linhas.stream().filter(Linha::geral).findFirst().orElseThrow();
-        var resumo = new Resumo(geral.sessoesIniciadas(), geral.tentativas(), geral.acertos(), geral.erros(),
+        var resumo = new Resumo(geral.sessoesIniciadas(), geral.tentativas(), geral.acertos(), geral.tentativasIncorretas(), geral.erros(),
                 geral.questoesUnicas(), geral.tentativasReaprendizagem(), taxa(geral));
 
         var porDia = linhas.stream().filter(linha -> linha.dia() != null)
                 .collect(Collectors.toMap(Linha::dia, Function.identity()));
         var dias = inicio.datesUntil(fimExclusivo).map(data -> {
             var dia = porDia.get(data);
-            return dia == null ? new Dia(data, 0, 0, 0) : new Dia(data, dia.tentativas(), dia.acertos(), dia.erros());
+            return dia == null ? new Dia(data, 0, 0, 0, 0)
+                    : new Dia(data, dia.tentativas(), dia.acertos(), dia.tentativasIncorretas(), dia.erros());
         }).toList();
 
         var porAssunto = linhas.stream().filter(linha -> linha.assuntoId() != null)
                 .map(linha -> new Assunto(linha.assuntoId(), linha.nome(), linha.sessoesIniciadas(), linha.tentativas(),
-                        linha.acertos(), linha.erros(), linha.questoesUnicas(), taxa(linha),
+                        linha.acertos(), linha.tentativasIncorretas(), linha.erros(), linha.questoesUnicas(), taxa(linha),
                         linha.nivelInicialObservado(), linha.nivelFinalObservado()))
                 .toList();
         return new RelatorioEvolucao(inicio, hoje, resumo, dias, porAssunto);

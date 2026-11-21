@@ -6,6 +6,7 @@ interface IndicadoresEvolucao {
   sessoesIniciadas: number;
   tentativas: number;
   acertos: number;
+  tentativasIncorretas: number;
   erros: number;
   questoesUnicas: number;
   taxaAcertoPrimeiraTentativa: number | null;
@@ -15,6 +16,7 @@ export interface DiaEvolucao {
   data: string;
   tentativas: number;
   acertos: number;
+  tentativasIncorretas: number;
   erros: number;
 }
 
@@ -33,10 +35,12 @@ export interface RelatorioEvolucao {
   assuntos: AssuntoEvolucao[];
 }
 
+export const chaveEvolucao = "evolucao-aprendizagem";
+
 export function useEvolucao(assuntoId: number | null = null, enabled = true) {
   const aluno = useChaveAluno();
   return useQuery({
-    queryKey: ["evolucao-aprendizagem", aluno, assuntoId],
+    queryKey: [chaveEvolucao, aluno, assuntoId],
     queryFn: async ({ signal }) => (await api.get<RelatorioEvolucao>("/api/aluno/evolucao", {
       params: { assuntoId }, signal,
     })).data,

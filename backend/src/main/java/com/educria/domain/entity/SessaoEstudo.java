@@ -61,6 +61,10 @@ public class SessaoEstudo {
         return new ResumoSessao(id, assunto.getId(), situacao, apresentadas.size(), iniciadaEm, atualizadaEm);
     }
 
+    public Long alunoId() {
+        return aluno.getId();
+    }
+
     @Getter
     private int passo = 1;
     private Long questaoRetomadaId;
@@ -85,7 +89,8 @@ public class SessaoEstudo {
     }
 
     public Long questaoAtual() {
-        return repetindo() ? questaoRetomadaId : apresentadas.getLast();
+        if (repetindo()) return questaoRetomadaId;
+        return apresentadas.isEmpty() ? null : apresentadas.getLast();
     }
 
     public boolean precisaApresentar(int posicao) {

@@ -11,17 +11,17 @@ import { mensagemErro, rotaSessoes, useChaveAluno } from "@/lib/estudo";
 import { Indicadores, inicio, Resultado, situacoes } from "@/lib/historico";
 
 function Resumo({ sessao }: { sessao: Indicadores }) {
-  const tentativas = sessao.acertos + sessao.erros;
-  const respondidas = sessao.respondidas ?? tentativas;
   return (
     <div className="space-y-3">
       <dl className="grid grid-cols-2 gap-3 text-slate-700 sm:grid-cols-4">
-        {([["Acertos", sessao.acertos], ["Erros", sessao.erros], ["Tentativas", tentativas], ["Questões distintas", sessao.apresentadas],
-          ["Sem resposta", sessao.apresentadas - respondidas]] as const).map(([nome, valor]) => (
+        {([["Tentativas", sessao.tentativas], ["Acertos", sessao.acertos], ["Tentativas incorretas", sessao.tentativasIncorretas],
+          ["Erros contabilizados", sessao.erros], ["Questões apresentadas", sessao.apresentadas],
+          ["Questões respondidas", sessao.respondidas], ["Sem resposta", sessao.apresentadas - sessao.respondidas]] as const).map(([nome, valor]) => (
           <div key={nome}><dt className="text-sm">{nome}</dt><dd className="text-xl font-bold text-slate-900">{valor}</dd></div>
         ))}
       </dl>
-      {respondidas === 0 ? <p className="text-sm text-slate-600">Nenhuma resposta foi gravada nesta sessão.</p> :
+      <p className="text-sm text-slate-600">Cada questão conta como erro uma vez por dia, na sessão do primeiro erro.</p>
+      {sessao.tentativas === 0 ? <p className="text-sm text-slate-600">Nenhuma resposta foi gravada nesta sessão.</p> :
         <p className="text-sm">Nível inicial: {sessao.nivelAntes ?? "sem registro"} · Nível final: {sessao.nivelDepois ?? "sem registro"}</p>}
     </div>
   );
@@ -82,7 +82,8 @@ export default function ResultadoPage() {
             <table className="w-full text-left text-sm"><thead><tr className="border-b text-slate-600">
               <th scope="col" className="py-2">Indicador</th><th scope="col">Esta sessão</th><th scope="col">Anterior</th>
             </tr></thead><tbody>
-              {([["Acertos", "acertos"], ["Erros", "erros"], ["Apresentadas", "apresentadas"]] as const).map(([nome, campo]) => (
+              {([["Tentativas", "tentativas"], ["Acertos", "acertos"], ["Tentativas incorretas", "tentativasIncorretas"],
+                ["Erros contabilizados", "erros"], ["Apresentadas", "apresentadas"], ["Respondidas", "respondidas"]] as const).map(([nome, campo]) => (
                 <tr key={campo} className="border-b last:border-0"><th scope="row" className="py-2 font-medium">{nome}</th>
                   <td>{dados.sessao[campo]}</td><td>{dados.anterior?.[campo]}</td></tr>))}
             </tbody></table>

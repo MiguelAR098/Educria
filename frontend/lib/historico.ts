@@ -9,7 +9,9 @@ export interface Indicadores {
   iniciadaEm: string;
   apresentadas: number;
   respondidas: number;
+  tentativas: number;
   acertos: number;
+  tentativasIncorretas: number;
   erros: number;
   nivelAntes: number | null;
   nivelDepois: number | null;

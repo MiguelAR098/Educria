@@ -8,6 +8,7 @@ import { ArrowLeft, ArrowRight, BookOpen } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
+import { chaveEvolucao } from "@/lib/evolucao";
 import { EstadoSessao, limiteQuestoes, mensagemErro, rotaSessoes, semQuestoes,
   useAssuntosDeEstudo, useChaveAluno, useSessoes } from "@/lib/estudo";
 
@@ -27,6 +28,7 @@ export default function PrepararAtividade() {
     },
     onSuccess: (estado) => {
       void cache.invalidateQueries({ queryKey: ["historico-sessoes", aluno] });
+      void cache.invalidateQueries({ queryKey: [chaveEvolucao, aluno] });
       void cache.invalidateQueries({ queryKey: ["sessoes", aluno] });
       router.push(`/aluno/atividade/${estado.sessao.id}`);
     },

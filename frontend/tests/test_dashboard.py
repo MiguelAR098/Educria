@@ -60,7 +60,8 @@ class ApiDeTeste:
         feedback = dict(alternativa="B", correta=True, explicacao=self.explicacao, nivelAnterior=1, nivelAtual=2)
         estado = dict(sessao=resumo, questaoAtual=self.questao, feedback=feedback if self.respondida else None)
         indicador = dict(id=7, assunto=ASSUNTO, situacao=self.situacao, iniciadaEm="2026-01-02T15:00:00Z",
-                         apresentadas=1, acertos=int(self.respondida), erros=0,
+                         apresentadas=1, respondidas=int(self.respondida), tentativas=int(self.respondida),
+                         acertos=int(self.respondida), tentativasIncorretas=0, erros=0,
                          nivelAntes=1 if self.respondida else None, nivelDepois=2 if self.respondida else None)
         revisao = dict(questaoId=12, enunciado=self.questao["enunciado"], assunto=ASSUNTO,
                        proximaRevisao=self.amanha, intervaloDias=1)
@@ -149,7 +150,7 @@ class DashboardAluno(unittest.TestCase):
         expect(item.get_by_text("Nível 2/10")).to_be_visible()
         toggle.click()
         expect(item.get_by_text("Nível inicial: 1 · Nível final: 2")).to_be_visible()
-        expect(page.get_by_text("Acertos: 1 · Erros: 0", exact=False)).to_be_visible()
+        expect(page.get_by_text("Acertos: 1 · Erros contabilizados: 0", exact=False)).to_be_visible()
         page.get_by_role("link", name="Minhas revisões").click()
         expect(page.get_by_role("heading", name="Futuras (1)")).to_be_visible()
         expect(page.get_by_text(enunciado, exact=True)).to_be_visible()
@@ -318,7 +319,8 @@ class DashboardAluno(unittest.TestCase):
         api.situacao = "ENCERRADA"
         api.aberta = True
         api.sessao_anterior = dict(id=6, assunto=ASSUNTO, iniciadaEm="2026-01-01T15:00:00Z",
-                                   situacao="ENCERRADA", apresentadas=2, respondidas=2, acertos=1, erros=2)
+                                   situacao="ENCERRADA", apresentadas=2, respondidas=2, tentativas=3,
+                                   acertos=1, tentativasIncorretas=2, erros=1)
         self.page.route("**/api/**", api.atender)
         self.login()
         controle = self.page.get_by_role("combobox", name="Tamanho do texto")
@@ -335,7 +337,8 @@ class DashboardAluno(unittest.TestCase):
         controle.select_option("Muito grande")
         self.page.keyboard.press("Escape")
         for rota, texto in [("/aluno", "Ver evolução"), ("/aluno/atividade", "Iniciar sessão"),
-                            ("/aluno/revisoes", "Futuras (0)"), ("/aluno/historico", "Acertos: 0 · Erros: 0"),
+                            ("/aluno/revisoes", "Futuras (0)"),
+                            ("/aluno/historico", "Acertos: 0 · Tentativas incorretas: 0 · Erros contabilizados: 0"),
                             ("/aluno/historico/7", "Indicador")]:
             self.page.goto(rota)
             expect(self.page.get_by_text(texto, exact=True).first).to_be_visible()
@@ -428,9 +431,12 @@ class DashboardAluno(unittest.TestCase):
         expect(tabela).to_have_count(0)
 
         api.sessao_anterior = dict(id=6, assunto=ASSUNTO, iniciadaEm="2026-01-01T15:00:00Z",
-                                   situacao="ENCERRADA", apresentadas=2, respondidas=2, acertos=2, erros=1)
+                                   situacao="ENCERRADA", apresentadas=2, respondidas=2, tentativas=5,
+                                   acertos=2, tentativasIncorretas=3, erros=1)
         self.page.reload()
-        expect(tabela.get_by_role("row", name="Erros 0 1")).to_be_visible()
+        expect(tabela.get_by_role("row", name="Erros contabilizados 0 1")).to_be_visible()
+        expect(tabela.get_by_role("row", name="Tentativas 0 5", exact=True)).to_be_visible()
+        expect(tabela.get_by_role("row", name="Tentativas incorretas 0 3")).to_be_visible()
         expect(tabela.get_by_role("row", name="Apresentadas 1 2")).to_be_visible()
 
     def test_fluxo_no_navegador(self):
@@ -463,8 +469,8 @@ class DashboardAluno(unittest.TestCase):
         page = self.page
         page.route("**/api/**", api.atender)
         # As duas sessões têm assuntos homônimos. Só a segunda página contém o ID escolhido.
-        comum = dict(situacao="ENCERRADA", iniciadaEm="2026-01-02T15:00:00Z", apresentadas=1,
-                     acertos=1, erros=0, assunto=ASSUNTO)
+        comum = dict(situacao="ENCERRADA", iniciadaEm="2026-01-02T15:00:00Z", apresentadas=1, respondidas=1,
+                     tentativas=1, acertos=1, tentativasIncorretas=0, erros=0, assunto=ASSUNTO)
         outra = dict(comum, id=8, nivelAntes=6, nivelDepois=7)
         legada = dict(comum, id=7, nivelAntes=None, nivelDepois=None)
         page.route("**/api/aluno/sessoes", lambda r: r.fulfill(json=[

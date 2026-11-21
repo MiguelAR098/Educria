@@ -78,7 +78,7 @@ public class SessaoEstudoService {
     public EstadoSessao mudarSituacao(String email, Long id, SituacaoSessao destino) {
         bloquearAluno(email);
         var sessao = buscar(email, id);
-        if (destino == SituacaoSessao.ENCERRADA && !respostas.fila(id).isEmpty()) {
+        if (destino == SituacaoSessao.ENCERRADA && !respostas.fila(id, sessao.alunoId()).isEmpty()) {
             throw new ApiException("Ainda há questões para reaprender. Você pode pausar a sessão.", HttpStatus.CONFLICT);
         }
         sessao.mudarSituacao(destino);
@@ -90,10 +90,10 @@ public class SessaoEstudoService {
         Aluno aluno = bloquearAluno(email);
         var sessao = buscar(email, id);
         if (!sessao.precisaApresentar(posicao)) return estado(sessao);
-        if (sessao.repetindo() && respostas.findBySessaoIdAndPasso(id, sessao.getPasso()).isEmpty()) {
+        if (sessao.repetindo() && respostas.findBySessaoIdAndPassoAndAlunoId(id, sessao.getPasso(), aluno.getId()).isEmpty()) {
             throw new ApiException("Responda à tentativa atual antes de avançar", HttpStatus.CONFLICT);
         }
-        var fila = respostas.fila(id);
+        var fila = respostas.fila(id, aluno.getId());
         var pendente = fila.isEmpty() ? null : fila.getFirst();
         boolean intercalou = pendente != null && sessao.getPasso() - pendente.getUltimoPasso() >= QUESTOES_ENTRE_TENTATIVAS;
         if (!intercalou && sessao.usadas().size() < SessaoEstudo.LIMITE) {
@@ -118,12 +118,13 @@ public class SessaoEstudoService {
                 .orElseThrow(() -> new ApiException("Questão não apresentada nesta sessão", HttpStatus.NOT_FOUND));
 
         // Um cliente antigo só pode enviar/repetir a primeira resposta àquela questão.
-        var anterior = passo == null ? respostas.findFirstBySessaoIdAndQuestaoIdOrderByPasso(id, questaoId)
+        var anterior = passo == null ? respostas.findFirstBySessaoIdAndQuestaoIdAndAlunoIdOrderByPasso(id, questaoId, aluno.getId())
                 : respostas.findBySessaoIdAndPasso(id, passo);
         if (anterior.isPresent()) {
             var salva = anterior.get();
-            if (!salva.getQuestao().getId().equals(questaoId) || !salva.getRespostaDada().equals(alternativa)) {
-                throw new ApiException("Esta tentativa já tem outra resposta", HttpStatus.CONFLICT);
+            if (!aluno.getId().equals(salva.getAluno().getId())
+                    || !salva.getQuestao().getId().equals(questaoId) || !salva.getRespostaDada().equals(alternativa)) {
+                throw tentativaOcupada();
             }
             return feedback(salva, id);
         }
@@ -131,6 +132,7 @@ public class SessaoEstudoService {
                 || !questaoId.equals(sessao.questaoAtual())) {
             throw new ApiException("Responda à questão atual de uma sessão ativa", HttpStatus.CONFLICT);
         }
+        if (passo == null && respostas.existsBySessaoIdAndPasso(id, sessao.getPasso())) throw tentativaOcupada();
         String texto = questao.textoAlternativa(alternativa);
         if (texto == null || texto.isBlank()) {
             throw new ApiException("Alternativa indisponível", HttpStatus.BAD_REQUEST);
@@ -166,11 +168,13 @@ public class SessaoEstudoService {
 
     private EstadoSessao estado(SessaoEstudo sessao) {
         var resumo = sessao.resumo();
+        Long alunoId = sessao.alunoId();
         Long questaoId = sessao.questaoAtual();
-        return new EstadoSessao(resumo, sessoes.questaoApresentada(questaoId),
-                respostas.findBySessaoIdAndPasso(resumo.id(), sessao.getPasso())
+        return new EstadoSessao(resumo, questaoId == null ? null : sessoes.questaoApresentada(questaoId),
+                respostas.findBySessaoIdAndPassoAndAlunoId(resumo.id(), sessao.getPasso(), alunoId)
+                        .filter(resposta -> resposta.getQuestao().getId().equals(questaoId))
                         .map(resposta -> feedback(resposta, resumo.id())).orElse(null),
-                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id()).size());
+                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id(), alunoId).size());
     }
 
     private FeedbackResposta feedback(RespostaAluno resposta, Long sessaoId) {
@@ -194,5 +198,9 @@ public class SessaoEstudoService {
 
     private static ApiException semQuestoes() {
         return new ApiException("Nenhuma questão elegível disponível", HttpStatus.CONFLICT);
+    }
+
+    private static ApiException tentativaOcupada() {
+        return new ApiException("Esta tentativa já tem outra resposta", HttpStatus.CONFLICT);
     }
 }

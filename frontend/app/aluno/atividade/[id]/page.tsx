@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
+import { chaveEvolucao } from "@/lib/evolucao";
 import { Alternativa, EstadoSessao, FeedbackResposta, limiteQuestoes, mensagemErro, QuestaoAtual, rotaSessoes, semQuestoes,
   useAssuntosDeEstudo, useChaveAluno } from "@/lib/estudo";
 import estilos from "./leitura.module.css";
@@ -157,6 +158,7 @@ export default function QuestaoDaSessao() {
           ? { ...estado, feedback } : estado);
       await cache.invalidateQueries({ queryKey: chave, exact: true });
       void cache.invalidateQueries({ queryKey: ["historico-sessoes", aluno] });
+      void cache.invalidateQueries({ queryKey: [chaveEvolucao, aluno] });
       void cache.invalidateQueries({ queryKey: ["resultado-sessao", aluno, id] });
       void cache.invalidateQueries({ queryKey: ["catalogo", "assuntos", aluno] });
       void cache.invalidateQueries({ queryKey: ["assuntos-de-estudo", aluno] });

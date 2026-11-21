@@ -29,7 +29,8 @@ function Resumo({ resumo }: { resumo: RelatorioEvolucao["resumo"] }) {
   ];
   const respostas = [
     ["Acertos", resumo.acertos],
-    ["Erros", resumo.erros],
+    ["Tentativas incorretas", resumo.tentativasIncorretas],
+    ["Erros contabilizados", resumo.erros],
     ["Tentativas de reaprendizagem", resumo.tentativasReaprendizagem],
   ] as const;
 
@@ -45,6 +46,7 @@ function Resumo({ resumo }: { resumo: RelatorioEvolucao["resumo"] }) {
             </div>
           ))}
         </dl>
+        <p className="text-sm text-slate-600">O primeiro erro de cada questão no dia conta para o assunto em que ocorreu.</p>
         <dl className="flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-100 pt-3 text-sm text-slate-700">
           {respostas.map(([rotulo, valor]) => (
             <div key={rotulo} className="inline-flex flex-wrap items-baseline gap-x-2">
@@ -92,7 +94,8 @@ function DesempenhoPorAssunto({ assuntos }: { assuntos: AssuntoEvolucao[] }) {
                       ["Sessões iniciadas", assunto.sessoesIniciadas],
                       ["Tentativas", assunto.tentativas],
                       ["Acertos", assunto.acertos],
-                      ["Erros", assunto.erros],
+                      ["Tentativas incorretas", assunto.tentativasIncorretas],
+                      ["Erros contabilizados", assunto.erros],
                       ["Questões únicas", assunto.questoesUnicas],
                     ] as const).map(([rotulo, valor]) => (
                       <div key={rotulo}><dt>{rotulo}</dt><dd className="font-bold tabular-nums">{numero.format(valor)}</dd></div>

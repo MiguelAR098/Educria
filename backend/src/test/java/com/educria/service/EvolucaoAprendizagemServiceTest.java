@@ -41,14 +41,14 @@ class EvolucaoAprendizagemServiceTest {
 
     @Test
     void preencheTrintaDiasLocaisComZeroQuandoNaoHaAtividade() {
-        var geral = new Linha(true, null, null, null, 0, 0, 0, 0, 0, 0, 0, 0, null, null);
+        var geral = new Linha(true, null, null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null);
         when(repositorio.agregar(42L, null, INICIO, FIM_EXCLUSIVO, ZONA)).thenReturn(List.of(geral));
 
         var relatorio = servico.obter(EMAIL, null);
 
         assertEquals(INICIO, relatorio.dataInicial());
         assertEquals(FIM_EXCLUSIVO.minusDays(1), relatorio.dataFinal());
-        assertEquals(INICIO.datesUntil(FIM_EXCLUSIVO).map(data -> new Dia(data, 0, 0, 0)).toList(),
+        assertEquals(INICIO.datesUntil(FIM_EXCLUSIVO).map(data -> new Dia(data, 0, 0, 0, 0)).toList(),
                 relatorio.evolucaoDiaria());
         assertEquals(0, relatorio.resumo().sessoesIniciadas());
         assertNull(relatorio.resumo().taxaAcertoPrimeiraTentativa());
@@ -57,18 +57,22 @@ class EvolucaoAprendizagemServiceTest {
 
     @Test
     void usaSomentePrimeirasTentativasNaTaxaEPreservaNivelAusente() {
-        var geral = new Linha(true, null, null, null, 2, 5, 2, 4, 1, 2, 3, 2, null, null);
-        var assunto = new Linha(false, 20L, "Frações", null, 2, 5, 2, 4, 1, 2, 3, 2, null, 6);
-        var dia = new Linha(false, null, null, INICIO, 0, 5, 2, 4, 1, 2, 3, 2, null, 6);
+        var geral = new Linha(true, null, null, null, 2, 6, 2, 4, 2, 1, 3, 3, 2, null, null);
+        var assunto = new Linha(false, 20L, "Frações", null, 2, 6, 2, 4, 2, 1, 3, 3, 2, null, 6);
+        var dia = new Linha(false, null, null, INICIO, 0, 6, 2, 4, 2, 1, 3, 3, 2, null, 6);
         when(repositorio.agregar(42L, null, INICIO, FIM_EXCLUSIVO, ZONA)).thenReturn(List.of(geral, assunto, dia));
 
         var relatorio = servico.obter(EMAIL, null);
 
         assertEquals(new BigDecimal("66.67"), relatorio.resumo().taxaAcertoPrimeiraTentativa());
-        assertEquals(2, relatorio.resumo().tentativasReaprendizagem());
-        assertEquals(new Dia(INICIO, 5, 4, 1), relatorio.evolucaoDiaria().getFirst());
+        assertEquals(3, relatorio.resumo().tentativasReaprendizagem());
+        assertEquals(2, relatorio.resumo().tentativasIncorretas());
+        assertEquals(1, relatorio.resumo().erros());
+        assertEquals(new Dia(INICIO, 6, 4, 2, 1), relatorio.evolucaoDiaria().getFirst());
         var detalhe = relatorio.assuntos().getFirst();
         assertEquals(new BigDecimal("66.67"), detalhe.taxaAcertoPrimeiraTentativa());
+        assertEquals(2, detalhe.tentativasIncorretas());
+        assertEquals(1, detalhe.erros());
         assertNull(detalhe.nivelInicialObservado());
         assertEquals(6, detalhe.nivelFinalObservado());
     }

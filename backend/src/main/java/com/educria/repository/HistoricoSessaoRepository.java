@@ -21,7 +21,11 @@ public class HistoricoSessaoRepository {
     private static final String INDICADORES = """
             select s.id, a.nome as assunto, s.situacao, s.iniciada_em, count(distinct sq.questao_id) as apresentadas,
                    count(distinct r.questao_id) as respondidas,
-                   count(*) filter (where r.correta) as acertos, count(*) filter (where not r.correta) as erros,
+                   count(r.id) as tentativas, count(*) filter (where r.correta) as acertos,
+                   count(*) filter (where not r.correta) as tentativas_incorretas,
+                   count(*) filter (where
+            """ + ErrosDiarios.PRIMEIRO_ERRO + """
+                   ) as erros,
                    (array_agg(r.nivel_anterior order by r.passo) filter (where r.id is not null))[1] as antes,
                    (array_agg(r.nivel_atual order by r.passo desc) filter (where r.id is not null))[1] as depois
             from sessoes_estudo s
@@ -34,12 +38,18 @@ public class HistoricoSessaoRepository {
     private static final String AGRUPAR = " group by s.id, a.nome order by s.id desc ";
     private static final RowMapper<Indicadores> LER = (rs, i) -> new Indicadores(
             rs.getLong("id"), rs.getString("assunto"), SituacaoSessao.valueOf(rs.getString("situacao")),
-            rs.getTimestamp("iniciada_em").toInstant(), rs.getInt("apresentadas"), rs.getInt("respondidas"), rs.getInt("acertos"),
-            rs.getInt("erros"), rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class));
+            rs.getTimestamp("iniciada_em").toInstant(), rs.getInt("apresentadas"), rs.getInt("respondidas"),
+            rs.getLong("tentativas"), rs.getLong("acertos"), rs.getLong("tentativas_incorretas"), rs.getLong("erros"),
+            rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class));
 
     public List<Indicadores> listar(String email, Long antesDe, int limite) {
         String filtro = antesDe == null ? "" : " and s.id < :antesDe";
-        var consulta = jdbc.sql(INDICADORES + filtro + AGRUPAR + "limit :limite")
+        var consulta = jdbc.sql("""
+                with pagina as (
+                    select s.id from sessoes_estudo s join usuarios u on u.id = s.aluno_id
+                    where u.email = :email
+                """ + filtro + " order by s.id desc limit :limite)\n"
+                + INDICADORES + " and s.id in (select id from pagina)" + AGRUPAR)
                 .param("email", email).param("limite", limite);
         if (antesDe != null) consulta = consulta.param("antesDe", antesDe);
         return consulta.query(LER).list();
