@@ -54,6 +54,16 @@ public class Questao {
     @Column(name = "ordem")
     private Integer ordem;
 
+    public String textoAlternativa(String letra) {
+        return switch (letra) {
+            case "A" -> alternativaA;
+            case "B" -> alternativaB;
+            case "C" -> alternativaC;
+            case "D" -> alternativaD;
+            case null, default -> null;
+        };
+    }
+
     public boolean isRespostaCorreta(String respostaAluno) {
         if (respostaAluno == null) return false;
         return respostaCorreta.equalsIgnoreCase(respostaAluno.trim());

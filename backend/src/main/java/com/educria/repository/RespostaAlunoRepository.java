@@ -12,6 +12,14 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
     Optional<RespostaAluno> findBySessaoIdAndPasso(Long sessao, int passo);
     Optional<RespostaAluno> findFirstBySessaoIdAndQuestaoIdOrderByPasso(Long sessao, Long questao);
 
+    @Query("""
+            select count(r) from RespostaAluno r
+            where r.aluno.id = :aluno and r.sessao.id = :sessao and r.questao.id = :questao
+              and r.passo <= :passo and r.correta = false
+            """)
+    long contarErrosAtePasso(@Param("aluno") Long aluno, @Param("sessao") Long sessao,
+                           @Param("questao") Long questao, @Param("passo") int passo);
+
     interface Pendencia {
         Long getQuestao();
         int getUltimoPasso();

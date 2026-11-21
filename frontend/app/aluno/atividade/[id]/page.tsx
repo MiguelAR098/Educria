@@ -16,6 +16,12 @@ import estilos from "./leitura.module.css";
 
 const letras = ["A", "B", "C", "D"] as const;
 
+const orientacoes = {
+  DICA_INICIAL: { titulo: "Dica para tentar novamente", cor: "bg-amber-50" },
+  DICA_APRIMORADA: { titulo: "Vamos por partes", cor: "bg-indigo-50" },
+  RESOLUCAO: { titulo: "Entenda a resposta", cor: "bg-violet-50" },
+};
+
 interface AlternativasProps {
   questao: QuestaoAtual;
   feedback?: FeedbackResposta;
@@ -31,6 +37,9 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
   const retorno = useRef<HTMLDivElement>(null);
 
   const respondida = feedback != null;
+  const orientacao = feedback && !feedback.correta && feedback.tipoOrientacao !== "EXPLICACAO"
+    ? orientacoes[feedback.tipoOrientacao ?? "DICA_INICIAL"] : null;
+  const revelou = orientacao && feedback?.tipoOrientacao === "RESOLUCAO";
   useEffect(() => {
     // O componente tem a questão como chave, inclusive ao avançar pelo teclado.
     (respondida ? retorno.current : titulo.current)?.focus();
@@ -80,10 +89,19 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
       </fieldset>
       <span role="status" className="sr-only">{enviando ? "Enviando sua resposta…" : ""}</span>
       {feedback ? (
-        <div ref={retorno} tabIndex={-1} aria-label="Correção da resposta" role="group" className={`${estilos.retorno} scroll-mt-24 space-y-2 rounded-xl p-4 text-slate-900 focus-visible:outline-indigo-700 ${feedback.correta ? "bg-emerald-50" : "bg-amber-50"}`}>
+        <div ref={retorno} tabIndex={-1} aria-label="Correção da resposta" role="group" className={`${estilos.retorno} scroll-mt-24 space-y-2 rounded-xl p-4 text-slate-900 focus-visible:outline-indigo-700 ${feedback.correta ? "bg-emerald-50" : orientacao?.cor ?? "bg-amber-50"}`}>
           <p role="status" className="font-semibold">{feedback.correta ? "Você acertou!" : "Resposta incorreta."}</p>
           {feedback.nivelAnterior != null && feedback.nivelAtual != null && (
             <p>Nível neste assunto: {feedback.nivelAnterior} → {feedback.nivelAtual}</p>
+          )}
+          {orientacao && <h3 className="font-bold">{orientacao.titulo}</h3>}
+          {revelou && (feedback.errosDaQuestao === 3
+            ? <p>Esta foi sua terceira tentativa incorreta. Vamos revisar o caminho juntos.</p>
+            : <p>Vamos rever a resolução para você tentar de novo.</p>)}
+          {revelou && feedback.alternativaCorreta && feedback.textoAlternativaCorreta && (
+            <p className="break-words rounded-lg bg-white/80 p-3 font-semibold">
+              Alternativa correta: {feedback.alternativaCorreta} — {feedback.textoAlternativaCorreta}
+            </p>
           )}
           {feedback.explicacao && <p>{feedback.explicacao}</p>}
           {feedback.reaprender && <p>Esta questão voltará nesta sessão para uma nova tentativa.</p>}

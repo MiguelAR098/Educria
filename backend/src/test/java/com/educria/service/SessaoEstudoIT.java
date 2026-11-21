@@ -582,6 +582,13 @@ class SessaoEstudoIT {
             var pedido = body(Map.of("alternativa", errar ? "B" : "A", "passo", passo));
             var feedback = call(put(rotaResposta(estado)).content(pedido), token, 200);
             assertEquals(feedback, call(put(rotaResposta(estado)).content(pedido), token, 200));
+            if (passo <= 2) assertEquals("DICA_INICIAL", feedback.get("tipoOrientacao").asText());
+            if (passo == 4) assertEquals("DICA_APRIMORADA", feedback.get("tipoOrientacao").asText());
+            if (passo == 5) {
+                assertEquals("EXPLICACAO", feedback.get("tipoOrientacao").asText());
+                assertFalse(feedback.has("alternativaCorreta"));
+            }
+            if (passo == 7) assertEquals("RESOLUCAO", feedback.get("tipoOrientacao").asText());
             if (passo == 4) {
                 // O reenvio do passo 1 chega quando a questão já reapareceu.
                 call(put(rotaResposta(estado)).content(body(Map.of("alternativa","A", "passo",1))), token, 409);
@@ -612,6 +619,83 @@ class SessaoEstudoIT {
                 usuarios.getFirst(), assunto));
         assertEquals(2, id("select total_erros from desempenho_por_assunto where aluno_id=? and assunto_id=?",
                 usuarios.getFirst(), assunto));
+    }
+
+    @Test
+    void revelaDepoisDeTresErrosSemResolverAPendenciaEReiniciaContagemEmOutraSessao() throws Exception {
+        db.update("""
+                delete from questoes where atividade_id = ?
+                and id <> (select min(id) from questoes where atividade_id = ?)
+                """, atividade, atividade);
+        db.update("update desempenho_por_assunto set nivel_atual=6 where aluno_id=? and assunto_id=?",
+                usuarios.getFirst(), assunto);
+        when(relogio.instant()).thenReturn(Instant.now().plusSeconds(300));
+
+        var estado = abrir(assunto, 201);
+        long sessao = estado.at("/sessao/id").asLong();
+        String rota = BASE + "/" + sessao;
+        String urlResposta = rotaResposta(estado);
+        var orientacoes = List.of("DICA_INICIAL", "DICA_APRIMORADA", "RESOLUCAO", "RESOLUCAO");
+        JsonNode primeira = null;
+        for (int passo = 1; passo <= 4; passo++) {
+            assertEquals(urlResposta, rotaResposta(estado));
+            assertFalse(estado.has("feedback"));
+            var pedido = body(Map.of("alternativa", "B", "passo", passo, "errosDaQuestao", 99));
+            var feedback = call(put(urlResposta).content(pedido), token, 200);
+            assertEquals(orientacoes.get(passo - 1), feedback.get("tipoOrientacao").asText());
+            assertEquals(passo, feedback.get("errosDaQuestao").asInt());
+            assertFalse(feedback.get("correta").asBoolean());
+            assertTrue(feedback.get("reaprender").asBoolean());
+            assertNiveis(feedback, 6, 6);
+            assertEquals(feedback, call(get(rota), token, 200).get("feedback"));
+            if (passo == 1) primeira = feedback;
+            if (passo < 3) {
+                assertFalse(feedback.has("alternativaCorreta"));
+                assertFalse(feedback.has("textoAlternativaCorreta"));
+                assertNotEquals("Explicação", feedback.get("explicacao").asText());
+            } else {
+                assertEquals("A", feedback.get("alternativaCorreta").asText());
+                assertEquals("a", feedback.get("textoAlternativaCorreta").asText());
+                assertEquals("Explicação", feedback.get("explicacao").asText());
+            }
+            if (passo == 2) {
+                assertEquals(feedback, call(put(rota + "/interromper"), token, 200).get("feedback"));
+                assertEquals(feedback, call(put(rota + "/retomar"), token, 200).get("feedback"));
+            }
+            if (passo < 4) estado = call(put(rota + "/questoes/" + (passo + 1)), token, 200);
+        }
+
+        assertEquals(primeira, call(put(urlResposta).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200));
+        assertEquals(4, id("select count(*) from respostas_aluno where sessao_id=? and not correta", sessao));
+        assertEquals(0, id("select count(*) from repeticao_espacada where aluno_id=?", usuarios.getFirst()));
+        call(put(rota + "/encerrar"), token, 409);
+        var historico = call(get(rota + "/resultado"), token, 200).get("sessao");
+        assertEquals(0, historico.get("acertos").asInt());
+        assertEquals(4, historico.get("erros").asInt());
+        var evolucao = call(get("/api/aluno/evolucao").param("assuntoId", Long.toString(assunto)), token, 200).get("resumo");
+        assertEquals(4, evolucao.get("tentativas").asInt());
+        assertEquals(4, evolucao.get("erros").asInt());
+        assertEquals(3, evolucao.get("tentativasReaprendizagem").asInt());
+        assertEquals(0, evolucao.get("acertos").asInt());
+
+        String outro = cadastrar("outro-feedback");
+        var estadoOutro = call(post(BASE).content(body(Map.of("assuntoId", assunto))), outro, 201);
+        var feedbackOutro = call(put(rotaResposta(estadoOutro)).content(body(Map.of("alternativa", "B", "passo", 1))), outro, 200);
+        assertEquals(1, feedbackOutro.get("errosDaQuestao").asInt());
+        assertFalse(feedbackOutro.has("alternativaCorreta"));
+
+        estado = call(put(rota + "/questoes/5"), token, 200);
+        var acerto = call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "A", "passo", 5))), token, 200);
+        assertTrue(acerto.get("correta").asBoolean());
+        assertFalse(acerto.has("errosDaQuestao"));
+        assertEquals(0, call(put(rota + "/encerrar"), token, 200).get("pendencias").asInt());
+
+        when(relogio.instant()).thenReturn(Instant.now().plusSeconds(172_800));
+        var nova = abrir(assunto, 201);
+        assertEquals(estado.at("/questaoAtual/id"), nova.at("/questaoAtual/id"));
+        var reinicio = call(put(rotaResposta(nova)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200);
+        assertEquals("DICA_INICIAL", reinicio.get("tipoOrientacao").asText());
+        assertEquals(1, reinicio.get("errosDaQuestao").asInt());
     }
 
     private String rotaResposta(JsonNode estado) {

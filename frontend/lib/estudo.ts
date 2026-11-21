@@ -32,6 +32,10 @@ export interface FeedbackResposta {
   alternativa: Alternativa;
   correta: boolean;
   explicacao: string | null;
+  tipoOrientacao?: "EXPLICACAO" | "DICA_INICIAL" | "DICA_APRIMORADA" | "RESOLUCAO";
+  errosDaQuestao?: number;
+  alternativaCorreta?: Alternativa;
+  textoAlternativaCorreta?: string;
 }
 
 export interface EstadoSessao {

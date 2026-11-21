@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.util.Locale;
 import java.util.HashMap;
 import java.time.Clock;
 import java.util.Set;
@@ -126,19 +125,13 @@ public class SessaoEstudoService {
             if (!salva.getQuestao().getId().equals(questaoId) || !salva.getRespostaDada().equals(alternativa)) {
                 throw new ApiException("Esta tentativa já tem outra resposta", HttpStatus.CONFLICT);
             }
-            return feedback(salva);
+            return feedback(salva, id);
         }
         if ((passo != null && passo != sessao.getPasso()) || sessao.getSituacao() != SituacaoSessao.ATIVA
                 || !questaoId.equals(sessao.questaoAtual())) {
             throw new ApiException("Responda à questão atual de uma sessão ativa", HttpStatus.CONFLICT);
         }
-        String texto = switch (alternativa) {
-            case "A" -> questao.getAlternativaA();
-            case "B" -> questao.getAlternativaB();
-            case "C" -> questao.getAlternativaC();
-            case "D" -> questao.getAlternativaD();
-            default -> null;
-        };
+        String texto = questao.textoAlternativa(alternativa);
         if (texto == null || texto.isBlank()) {
             throw new ApiException("Alternativa indisponível", HttpStatus.BAD_REQUEST);
         }
@@ -157,7 +150,7 @@ public class SessaoEstudoService {
                 .respostaDada(alternativa).correta(correta)
                 .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).build());
         agenda.registrar(aluno, questao, correta);
-        return feedback(salva);
+        return feedback(salva, id);
     }
 
     private Aluno bloquearAluno(String email) {
@@ -175,29 +168,16 @@ public class SessaoEstudoService {
         var resumo = sessao.resumo();
         Long questaoId = sessao.questaoAtual();
         return new EstadoSessao(resumo, sessoes.questaoApresentada(questaoId),
-                respostas.findBySessaoIdAndPasso(resumo.id(), sessao.getPasso()).map(this::feedback).orElse(null),
+                respostas.findBySessaoIdAndPasso(resumo.id(), sessao.getPasso())
+                        .map(resposta -> feedback(resposta, resumo.id())).orElse(null),
                 sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id()).size());
     }
 
-    private FeedbackResposta feedback(RespostaAluno resposta) {
-        var questao = resposta.getQuestao();
-        String explicacao = resposta.isReaprender() ? orientacao(questao.getAssunto().getNome()) : questao.getExplicacao();
-        return new FeedbackResposta(resposta.getRespostaDada(), resposta.isCorreta(), explicacao,
-                resposta.getNivelAnterior(), resposta.getNivelAtual(), resposta.isReaprender());
-    }
-
-    private String orientacao(String assunto) {
-        return switch (assunto.toLowerCase(Locale.ROOT)) {
-            case "somar e subtrair" -> "Separe dezenas e unidades. Confira se a operação deve aumentar ou diminuir o valor inicial.";
-            case "multiplicar e dividir" -> "Organize os valores em grupos iguais e confira o cálculo com a operação inversa.";
-            case "frações" -> "Identifique o todo e o que cada parte representa. Faça um desenho para conferir.";
-            case "porcentagem" -> "Identifique qual quantidade representa 100% antes de calcular a parte pedida.";
-            case "proporção" -> "Organize os pares de valores e verifique se variam no mesmo sentido ou em sentidos opostos.";
-            case "equações" -> "Faça a mesma operação nos dois lados da igualdade. Teste o valor encontrado.";
-            case "área e perímetro" -> "Confira se a pergunta pede a superfície ou o contorno e observe a unidade de medida.";
-            case "várias etapas" -> "Separe o problema em etapas e anote cada resultado intermediário.";
-            default -> "Identifique o que a pergunta pede e refaça o raciocínio antes de comparar as alternativas.";
-        };
+    private FeedbackResposta feedback(RespostaAluno resposta, Long sessaoId) {
+        // O limite pelo passo da resposta conserva a dica original em reenvios antigos.
+        long erros = resposta.isCorreta() ? 0 : respostas.contarErrosAtePasso(
+                resposta.getAluno().getId(), sessaoId, resposta.getQuestao().getId(), resposta.getPasso());
+        return FeedbackPedagogico.montar(resposta, erros);
     }
 
     private Optional<Escolha> selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas, int revisoesUsadas, LocalDate hoje) {
