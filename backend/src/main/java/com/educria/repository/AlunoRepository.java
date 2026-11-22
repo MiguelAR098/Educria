@@ -23,4 +23,6 @@ public interface AlunoRepository extends JpaRepository<Aluno, Long> {
     Optional<Aluno> bloquearPorEmail(@Param("email") String email);
 
     List<Aluno> findByTurmaId(Long turmaId);
+
+    long countByTurmaId(Long turmaId);
 }
