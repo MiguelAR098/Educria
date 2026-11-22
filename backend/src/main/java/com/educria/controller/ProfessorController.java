@@ -1,5 +1,6 @@
 package com.educria.controller;
 
+import com.educria.dto.DetalheDoAluno;
 import com.educria.dto.PerfilProfessor;
 import com.educria.dto.TurmaComAlunos;
 import com.educria.service.ProfessorService;
@@ -26,5 +27,11 @@ public class ProfessorController {
     @GetMapping("/turmas/{turmaId}")
     public TurmaComAlunos turma(@AuthenticationPrincipal UserDetails usuario, @PathVariable Long turmaId) {
         return professorService.turma(usuario.getUsername(), turmaId);
+    }
+
+    @GetMapping("/turmas/{turmaId}/alunos/{alunoId}")
+    public DetalheDoAluno aluno(@AuthenticationPrincipal UserDetails usuario,
+                                @PathVariable Long turmaId, @PathVariable Long alunoId) {
+        return professorService.detalheDoAluno(usuario.getUsername(), turmaId, alunoId);
     }
 }

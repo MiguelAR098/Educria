@@ -1,3 +1,5 @@
+import type { RelatorioEvolucao } from "./evolucao";
+
 export type UserRole = "ALUNO" | "PROFESSOR" | "ADMIN";
 
 export interface User {
@@ -104,5 +106,25 @@ export interface TurmaComAlunos {
   anoLetivo: number;
   resumo: ResumoDaTurma;
   alunos: AlunoDaTurma[];
+}
+
+export interface AssuntoNaMatriz {
+  id: number;
+  nome: string;
+  nivelAtual: number;
+  errosConsecutivos: number;
+  acertos: number;
+  erros: number;
+  taxaAcerto: number | null;
+  situacao: SituacaoAluno;
+}
+
+export interface DetalheDoAluno {
+  aluno: AlunoDaTurma;
+  turmaId: number;
+  turmaNome: string;
+  materia: string;
+  assuntos: AssuntoNaMatriz[];
+  evolucao: RelatorioEvolucao;
 }
 

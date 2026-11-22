@@ -5,7 +5,8 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { api } from "@/lib/api";
-import { AlunoDaTurma, SituacaoAluno, TurmaComAlunos } from "@/lib/types";
+import { AlunoDaTurma, TurmaComAlunos } from "@/lib/types";
+import { SITUACAO } from "@/lib/situacao";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
@@ -13,16 +14,6 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, ArrowLeft, BarChart3, Users } from "lucide-react";
-
-const SITUACAO: Record<
-  SituacaoAluno,
-  { rotulo: string; variante: "outline" | "destructive" | "warning" | "success"; ordem: number }
-> = {
-  EM_RISCO: { rotulo: "Em risco", variante: "destructive", ordem: 0 },
-  ATENCAO: { rotulo: "Atenção", variante: "warning", ordem: 1 },
-  NO_CAMINHO: { rotulo: "No caminho", variante: "success", ordem: 2 },
-  SEM_DADOS: { rotulo: "Sem dados", variante: "outline", ordem: 3 },
-};
 
 function motivo(aluno: AlunoDaTurma): string {
   const total = aluno.acertos + aluno.erros;
@@ -172,7 +163,12 @@ export default function TurmaDoProfessorPage() {
                           {alunos.map((aluno) => (
                             <tr key={aluno.id} className="border-b border-slate-100 last:border-0">
                               <td className="py-3 pr-4">
-                                <p className="font-semibold text-slate-800">{aluno.nome}</p>
+                                <Link
+                                  href={`/professor/turma/${turma.data.id}/aluno/${aluno.id}`}
+                                  className="font-semibold text-indigo-700 hover:underline"
+                                >
+                                  {aluno.nome}
+                                </Link>
                                 {aluno.matricula && (
                                   <p className="text-xs text-slate-500">{aluno.matricula}</p>
                                 )}

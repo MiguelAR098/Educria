@@ -13,6 +13,9 @@ import java.util.Optional;
 public interface AssuntoRepository extends Repository<Assunto, Long> {
     Optional<Assunto> findById(Long id);
 
+    @Query("select s from Assunto s where s.materia.id = :materiaId order by s.nome")
+    List<Assunto> daMateria(@Param("materiaId") Long materiaId);
+
     @Query("""
             select s from Assunto s left join DesempenhoPorAssunto d on d.assunto = s and d.aluno.id = :alunoId
             where exists (select q.id from Questao q where q.assunto = s and

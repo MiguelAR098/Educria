@@ -36,6 +36,16 @@ public class EvolucaoAprendizagemService {
     public RelatorioEvolucao obter(String email, Long assuntoId) {
         var aluno = alunos.findByEmail(email)
                 .orElseThrow(() -> new ApiException("Aluno não encontrado", HttpStatus.NOT_FOUND));
+        return montar(aluno.getId(), assuntoId);
+    }
+
+    /** Mesmo relatório, para consulta por outro perfil (professor). A autorização é de quem chama. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public RelatorioEvolucao obterDoAluno(Long alunoId, Long assuntoId) {
+        return montar(alunoId, assuntoId);
+    }
+
+    private RelatorioEvolucao montar(Long alunoId, Long assuntoId) {
         if (assuntoId != null && assuntos.findById(assuntoId).isEmpty()) {
             throw new ApiException("Assunto não encontrado", HttpStatus.NOT_FOUND);
         }
@@ -43,7 +53,7 @@ public class EvolucaoAprendizagemService {
         var hoje = LocalDate.now(relogio);
         var inicio = hoje.minusDays(DIAS - 1);
         var fimExclusivo = hoje.plusDays(1);
-        var linhas = evolucao.agregar(aluno.getId(), assuntoId, inicio, fimExclusivo, relogio.getZone());
+        var linhas = evolucao.agregar(alunoId, assuntoId, inicio, fimExclusivo, relogio.getZone());
         var geral = linhas.stream().filter(Linha::geral).findFirst().orElseThrow();
         var resumo = new Resumo(geral.sessoesIniciadas(), geral.tentativas(), geral.acertos(), geral.tentativasIncorretas(), geral.erros(),
                 geral.questoesUnicas(), geral.tentativasReaprendizagem(), taxa(geral));
