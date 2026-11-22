@@ -72,3 +72,37 @@ export interface PerfilProfessor {
   materia: string;
   turmas: TurmaDoProfessor[];
 }
+
+export type SituacaoAluno = "SEM_DADOS" | "EM_RISCO" | "ATENCAO" | "NO_CAMINHO";
+
+export interface AlunoDaTurma {
+  id: number;
+  nome: string;
+  matricula?: string;
+  nivelAtual: number;
+  errosConsecutivos: number;
+  acertos: number;
+  erros: number;
+  taxaAcerto: number | null;
+  situacao: SituacaoAluno;
+  ultimaAtividade: string | null;
+}
+
+export interface ResumoDaTurma {
+  totalAlunos: number;
+  nivelMedio: number | null;
+  emRisco: number;
+  atencao: number;
+  noCaminho: number;
+  semDados: number;
+}
+
+export interface TurmaComAlunos {
+  id: number;
+  nome: string;
+  codigo: string;
+  anoLetivo: number;
+  resumo: ResumoDaTurma;
+  alunos: AlunoDaTurma[];
+}
+
