@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { rotaInicial } from "@/lib/rotas";
 import { AuthResponse, RegisterPayload } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (_hasHydrated && token && user) {
-      router.replace(user.role === "ADMIN" ? "/admin" : "/aluno");
+      router.replace(rotaInicial(user.role));
     }
   }, [_hasHydrated, token, user, router]);
 

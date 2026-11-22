@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
+import { rotaInicial } from "@/lib/rotas";
 import { AuthResponse, LoginPayload } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (_hasHydrated && token && user) {
-      router.replace(user.role === "ADMIN" ? "/admin" : "/aluno");
+      router.replace(rotaInicial(user.role));
     }
   }, [_hasHydrated, token, user, router]);
 
@@ -51,7 +52,7 @@ export default function LoginPage() {
       });
 
       toast.success("Login realizado com sucesso! Bem-vindo de volta.");
-      router.push(role === "ADMIN" ? "/admin" : "/aluno");
+      router.push(rotaInicial(role));
     },
     onError: (error: AxiosError<{ message?: string; error?: string }>) => {
       const msg =

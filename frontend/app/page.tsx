@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
+import { rotaInicial } from "@/lib/rotas";
 import { Loader2, Sparkles } from "lucide-react";
 
 export default function HomePage() {
@@ -14,10 +15,8 @@ export default function HomePage() {
 
     if (!token || !user) {
       router.replace("/login");
-    } else if (user.role === "ADMIN") {
-      router.replace("/admin");
     } else {
-      router.replace("/aluno");
+      router.replace(rotaInicial(user.role));
     }
   }, [_hasHydrated, token, user, router]);
 

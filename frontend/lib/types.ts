@@ -1,4 +1,4 @@
-export type UserRole = "ALUNO" | "ADMIN";
+export type UserRole = "ALUNO" | "PROFESSOR" | "ADMIN";
 
 export interface User {
   id?: string | number;
@@ -55,4 +55,20 @@ export interface CriarTurmaPayload {
 export interface LancarPontosPayload {
   turmaId: string | number;
   pontos: number;
+}
+
+export interface TurmaDoProfessor {
+  id: number;
+  nome: string;
+  codigo: string;
+  anoLetivo: number;
+  totalAlunos: number;
+}
+
+export interface PerfilProfessor {
+  id: number;
+  nome: string;
+  email: string;
+  materia: string;
+  turmas: TurmaDoProfessor[];
 }

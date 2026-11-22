@@ -5,7 +5,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Sparkles, ShieldCheck, GraduationCap } from "lucide-react";
+import { LogOut, Sparkles, ShieldCheck, GraduationCap, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
 export function Navbar() {
@@ -58,13 +58,18 @@ export function Navbar() {
               </span>
             </div>
             <Badge
-              variant={user?.role === "ADMIN" ? "secondary" : "default"}
+              variant={user?.role === "ALUNO" ? "default" : "secondary"}
               className="hidden sm:inline-flex gap-1"
             >
               {user?.role === "ADMIN" ? (
                 <>
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Admin
+                </>
+              ) : user?.role === "PROFESSOR" ? (
+                <>
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Professor
                 </>
               ) : (
                 <>

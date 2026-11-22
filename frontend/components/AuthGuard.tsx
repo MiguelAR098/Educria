@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { UserRole } from "@/lib/types";
+import { rotaInicial } from "@/lib/rotas";
 import { Loader2, Sparkles } from "lucide-react";
 
 interface AuthGuardProps {
@@ -24,11 +25,7 @@ export function AuthGuard({ children, allowedRole }: AuthGuardProps) {
     }
 
     if (user.role !== allowedRole) {
-      if (user.role === "ADMIN") {
-        router.replace("/admin");
-      } else {
-        router.replace("/aluno");
-      }
+      router.replace(rotaInicial(user.role));
     }
   }, [_hasHydrated, token, user, allowedRole, router]);
 
