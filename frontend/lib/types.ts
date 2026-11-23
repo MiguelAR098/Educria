@@ -128,3 +128,27 @@ export interface DetalheDoAluno {
   evolucao: RelatorioEvolucao;
 }
 
+export type TipoAtividadeColetiva = "ROBOTICA" | "LEITURA" | "PROJETO" | "DESAFIO" | "OUTRO";
+
+export interface AtividadeColetiva {
+  id: number;
+  tipo: TipoAtividadeColetiva;
+  titulo: string;
+  pontos: number;
+  resumo: string | null;
+  lancadaPor: string | null;
+  criadoEm: string;
+}
+
+export interface HistoricoDeAtividades {
+  pontosTotais: number;
+  atividades: AtividadeColetiva[];
+}
+
+export interface LancarAtividadePayload {
+  tipo: TipoAtividadeColetiva;
+  titulo: string;
+  pontos: number;
+  resumo?: string;
+}
+

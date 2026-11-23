@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, ArrowLeft, BarChart3, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, Trophy, Users } from "lucide-react";
 
 function motivo(aluno: AlunoDaTurma): string {
   const total = aluno.acertos + aluno.erros;
@@ -89,17 +89,26 @@ export default function TurmaDoProfessorPage() {
 
           {turma.data && (
             <>
-              <div className="space-y-1">
-                <Badge variant="secondary" className="gap-1">
-                  <Users className="h-3.5 w-3.5" />
-                  Turma
-                </Badge>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-                  {turma.data.nome}
-                </h1>
-                <p className="text-sm text-slate-500">
-                  {turma.data.codigo} · {turma.data.anoLetivo}
-                </p>
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="space-y-1">
+                  <Badge variant="secondary" className="gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    Turma
+                  </Badge>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+                    {turma.data.nome}
+                  </h1>
+                  <p className="text-sm text-slate-500">
+                    {turma.data.codigo} · {turma.data.anoLetivo}
+                  </p>
+                </div>
+                <Link
+                  href={`/professor/turma/${turma.data.id}/atividades`}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                >
+                  <Trophy className="h-4 w-4" />
+                  Atividades coletivas
+                </Link>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

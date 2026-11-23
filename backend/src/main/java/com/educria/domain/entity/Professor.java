@@ -8,6 +8,7 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 @Entity
@@ -35,6 +36,10 @@ public class Professor extends Usuario {
     )
     @Builder.Default
     private Set<Turma> turmas = new HashSet<>();
+
+    public Optional<Turma> turmaPorId(Long turmaId) {
+        return turmas.stream().filter(t -> t.getId().equals(turmaId)).findFirst();
+    }
 
     public boolean lecionaNaTurma(Long turmaId) {
         return turmas.stream().anyMatch(t -> t.getId().equals(turmaId));
