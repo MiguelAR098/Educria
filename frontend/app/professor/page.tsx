@@ -26,19 +26,28 @@ export default function ProfessorPage() {
         <Navbar />
 
         <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 space-y-8">
-          <div className="space-y-1">
-            <Badge variant="secondary" className="gap-1">
-              <BookOpen className="h-3.5 w-3.5" />
-              Painel do Professor
-            </Badge>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              {perfil.data ? `Olá, ${perfil.data.nome}` : "Painel do Professor"}
-            </h1>
-            <p className="text-sm text-slate-500">
-              {perfil.data
-                ? `${perfil.data.materia} · acompanhe suas turmas.`
-                : "Acompanhe suas turmas."}
-            </p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="space-y-1">
+              <Badge variant="secondary" className="gap-1">
+                <BookOpen className="h-3.5 w-3.5" />
+                Painel do Professor
+              </Badge>
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+                {perfil.data ? `Olá, ${perfil.data.nome}` : "Painel do Professor"}
+              </h1>
+              <p className="text-sm text-slate-500">
+                {perfil.data
+                  ? `${perfil.data.materia} · acompanhe suas turmas.`
+                  : "Acompanhe suas turmas."}
+              </p>
+            </div>
+            <Link
+              href="/professor/questoes"
+              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+            >
+              <BookOpen className="h-4 w-4" />
+              Banco de questões
+            </Link>
           </div>
 
           {perfil.isLoading && (

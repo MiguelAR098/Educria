@@ -11,6 +11,8 @@ public interface AtividadeRepository extends JpaRepository<Atividade, Long> {
 
     List<Atividade> findByAtivaTrue();
 
+    Optional<Atividade> findFirstByTituloOrderByIdAsc(String titulo);
+
     @Query("SELECT a FROM Atividade a LEFT JOIN FETCH a.questoes WHERE a.id = :id")
     Optional<Atividade> findByIdWithQuestoes(Long id);
 }

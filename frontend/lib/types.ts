@@ -165,3 +165,44 @@ export interface RecadosDoAluno {
   recados: Recado[];
 }
 
+export interface AssuntoSimples {
+  id: number;
+  nome: string;
+}
+
+export interface QuestaoDoProfessor {
+  id: number;
+  assuntoId: number;
+  assunto: string;
+  dificuldade: number | null;
+  enunciado: string;
+  alternativaA: string;
+  alternativaB: string;
+  alternativaC: string;
+  alternativaD: string;
+  respostaCorreta: string;
+  explicacao: string | null;
+  ativa: boolean;
+  autor: string | null;
+  totalRespostas: number;
+  taxaAcerto: number | null;
+}
+
+export interface BancoDeQuestoes {
+  materia: string;
+  assuntos: AssuntoSimples[];
+  questoes: QuestaoDoProfessor[];
+}
+
+export interface QuestaoPayload {
+  assuntoId: number;
+  dificuldade: number;
+  enunciado: string;
+  alternativaA: string;
+  alternativaB: string;
+  alternativaC: string;
+  alternativaD: string;
+  respostaCorreta: string;
+  explicacao?: string;
+}
+

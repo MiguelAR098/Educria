@@ -54,6 +54,17 @@ public class Questao {
     @Column(name = "ordem")
     private Integer ordem;
 
+    /** Questões desativadas deixam de ser sorteadas, mas mantêm o histórico dos alunos. */
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean ativa = true;
+
+    /** Professor que cadastrou a questão; nulo nas questões da carga inicial. */
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "autor_id")
+    private Professor autor;
+
     public String textoAlternativa(String letra) {
         return switch (letra) {
             case "A" -> alternativaA;
