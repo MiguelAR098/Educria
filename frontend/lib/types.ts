@@ -213,3 +213,32 @@ export interface ResultadoImportacao {
   erros: string[];
 }
 
+export interface CelulaDoMapa {
+  nivel: number;
+  praticou: boolean;
+}
+
+export interface LinhaDoMapa {
+  alunoId: number;
+  nome: string;
+  celulas: CelulaDoMapa[];
+}
+
+export interface AssuntoDaTurma {
+  assuntoId: number;
+  nome: string;
+  nivelMedio: number | null;
+  noNivelBaixo: number;
+  alunosQuePraticaram: number;
+}
+
+export interface MapaDaTurma {
+  turmaId: number;
+  turmaNome: string;
+  materia: string;
+  assuntos: AssuntoSimples[];
+  alunos: LinhaDoMapa[];
+  medias: AssuntoDaTurma[];
+  maisFrageis: AssuntoDaTurma[];
+}
+

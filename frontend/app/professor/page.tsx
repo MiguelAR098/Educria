@@ -9,7 +9,7 @@ import { Navbar } from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, ChevronRight, School, Users } from "lucide-react";
+import { BookOpen, ChevronRight, School, ShieldCheck, Users } from "lucide-react";
 
 export default function ProfessorPage() {
   const perfil = useQuery({
@@ -111,6 +111,12 @@ export default function ProfessorPage() {
               ))}
             </div>
           )}
+
+          <p className="text-sm text-slate-500">
+            <Link href="/professor/privacidade" className="inline-flex items-center gap-1.5 font-semibold text-indigo-700 hover:underline">
+              <ShieldCheck className="h-4 w-4" /> Dados e privacidade
+            </Link>
+          </p>
         </main>
       </div>
     </AuthGuard>

@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, ArrowLeft, BarChart3, Trophy, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, Grid3x3, Trophy, Users } from "lucide-react";
 
 function motivo(aluno: AlunoDaTurma): string {
   const total = aluno.acertos + aluno.erros;
@@ -102,13 +102,22 @@ export default function TurmaDoProfessorPage() {
                     {turma.data.codigo} · {turma.data.anoLetivo}
                   </p>
                 </div>
-                <Link
-                  href={`/professor/turma/${turma.data.id}/atividades`}
-                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
-                >
-                  <Trophy className="h-4 w-4" />
-                  Atividades coletivas
-                </Link>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/professor/turma/${turma.data.id}/mapa`}
+                    className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50"
+                  >
+                    <Grid3x3 className="h-4 w-4" />
+                    Mapa por assunto
+                  </Link>
+                  <Link
+                    href={`/professor/turma/${turma.data.id}/atividades`}
+                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+                  >
+                    <Trophy className="h-4 w-4" />
+                    Atividades coletivas
+                  </Link>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

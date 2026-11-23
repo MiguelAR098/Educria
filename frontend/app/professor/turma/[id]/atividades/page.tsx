@@ -95,7 +95,7 @@ export default function AtividadesColetivasPage() {
                 Atividades coletivas
               </h1>
               <p className="max-w-xl text-sm text-slate-500">
-                Os pontos são da turma inteira e não mudam o nível individual de nenhum aluno.
+                Registre o que a turma fez junto e some pontos ao total coletivo.
               </p>
             </div>
             {historico.data && (
@@ -112,6 +112,24 @@ export default function AtividadesColetivasPage() {
               </div>
             )}
           </div>
+
+          <Card className="shadow-sm border-slate-200/80">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Duas moedas separadas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm text-slate-700">
+              <p>
+                O <strong>ponto individual</strong> mede o que cada aluno sustenta em cada assunto. É privado: só o
+                próprio aluno e os professores da turma veem. O <strong>ponto coletivo</strong> vem de uma atividade
+                que a turma fez junto, é lançado por um professor e aparece para a turma.
+              </p>
+              <p className="text-slate-500">
+                As duas nunca se convertem uma na outra. Um aluno que foi mal numa prova não derruba os pontos
+                coletivos da sala, e uma turma que ganhou pontos numa atividade não empurra o nível individual de
+                ninguém para cima.
+              </p>
+            </CardContent>
+          </Card>
 
           {historico.isLoading && <Skeleton className="h-64 w-full" />}
 

@@ -14,4 +14,12 @@ public interface DesempenhoPorAssuntoRepository extends JpaRepository<Desempenho
 
     @Query("select d from DesempenhoPorAssunto d join fetch d.assunto where d.aluno.id = :alunoId")
     List<DesempenhoPorAssunto> doAluno(@Param("alunoId") Long alunoId);
+
+    @Query("""
+            select d from DesempenhoPorAssunto d
+            join fetch d.assunto a
+            join fetch d.aluno al
+            where al.turma.id = :turmaId and a.materia.id = :materiaId
+            """)
+    List<DesempenhoPorAssunto> daTurma(@Param("turmaId") Long turmaId, @Param("materiaId") Long materiaId);
 }
