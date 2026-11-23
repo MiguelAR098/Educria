@@ -206,3 +206,10 @@ export interface QuestaoPayload {
   explicacao?: string;
 }
 
+export interface ResultadoImportacao {
+  importadas: number;
+  repetidas: number;
+  recusadas: number;
+  erros: string[];
+}
+

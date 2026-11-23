@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
-import { ArrowLeft, BookOpen, Plus } from "lucide-react";
+import { ArrowLeft, BookOpen, FileJson, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { ErroApi, mensagemDeErro } from "@/lib/erros";
 import { BancoDeQuestoes, QuestaoDoProfessor, QuestaoPayload } from "@/lib/types";
 import { AuthGuard } from "@/components/AuthGuard";
 import { FormularioQuestao } from "@/components/FormularioQuestao";
+import { ImportarExportarQuestoes } from "@/components/ImportarExportarQuestoes";
 import { Navbar } from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ export default function BancoDeQuestoesPage() {
   const [filtro, setFiltro] = useState<string>("");
   const [criando, setCriando] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [abrirJson, setAbrirJson] = useState(false);
 
   const banco = useQuery({
     queryKey: ["professor", "questoes", filtro],
@@ -100,10 +102,17 @@ export default function BancoDeQuestoesPage() {
                 desativar, o histórico dos alunos é preservado.
               </p>
             </div>
-            {!criando && banco.data && (
-              <Button onClick={() => { setCriando(true); setEditandoId(null); }}>
-                <Plus className="mr-2 h-4 w-4" /> Nova questão
-              </Button>
+            {banco.data && (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setAbrirJson((aberto) => !aberto)}>
+                  <FileJson className="mr-2 h-4 w-4" /> Importar / exportar JSON
+                </Button>
+                {!criando && (
+                  <Button onClick={() => { setCriando(true); setEditandoId(null); }}>
+                    <Plus className="mr-2 h-4 w-4" /> Nova questão
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 
@@ -114,6 +123,21 @@ export default function BancoDeQuestoesPage() {
 
           {banco.data && (
             <>
+              {abrirJson && (
+                <Card className="shadow-md border-indigo-200">
+                  <CardHeader>
+                    <CardTitle className="text-base">Importar e exportar em JSON</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ImportarExportarQuestoes
+                      materia={banco.data.materia}
+                      assuntos={assuntos}
+                      aoImportar={atualizarLista}
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
               {criando && (
                 <Card className="shadow-md border-indigo-200">
                   <CardHeader>

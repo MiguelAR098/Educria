@@ -1,0 +1,12 @@
+[
+  {"conceito": "porcentagem", "dificuldade": 2, "enunciado": "Quanto é 10% de 250?",
+   "alts": ["20", "25", "30", "35"], "correta": 1, "explicacao": "10% é a décima parte: 250 dividido por 10 é 25."},
+  {"conceito": "Frações", "dificuldade": 3, "enunciado": "Quanto é 3/4 de 20?",
+   "alts": ["10", "12", "15", "18"], "correta": "C", "explicacao": "Um quarto de 20 é 5, e três quartos são 15."},
+  {"conceito": "equações", "dificuldade": 4, "enunciado": "Se 2x + 3 = 11, quanto vale x?",
+   "alts": ["3", "4", "5", "8"], "correta": 1, "explicacao": "Tire 3 dos dois lados e divida por 2."},
+  {"conceito": "somar e subtrair", "dificuldade": 1, "enunciado": "Quanto é 7 + 8?",
+   "alts": ["13", "15", "16", "17"], "correta": 1, "explicacao": "Este enunciado já existe no banco: deve contar como repetido."},
+  {"conceito": "geometria", "dificuldade": 2, "enunciado": "Quantos lados tem um triângulo?",
+   "alts": ["2", "3", "4", "5"], "correta": 1, "explicacao": "Conceito inexistente nesta matéria: deve ser recusado."}
+]

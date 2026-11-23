@@ -8,17 +8,21 @@ import com.educria.domain.entity.Questao;
 import com.educria.dto.AssuntoSimples;
 import com.educria.dto.BancoDeQuestoes;
 import com.educria.dto.QuestaoDoProfessor;
+import com.educria.dto.QuestaoExportada;
 import com.educria.dto.QuestaoRequest;
+import com.educria.dto.ResultadoImportacao;
 import com.educria.exception.ApiException;
 import com.educria.repository.AssuntoRepository;
 import com.educria.repository.AtividadeRepository;
 import com.educria.repository.BancoDeQuestoesRepository;
 import com.educria.repository.ProfessorRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +39,8 @@ import java.util.stream.Stream;
 public class BancoDeQuestoesService {
 
     private static final Set<String> LETRAS = Set.of("A", "B", "C", "D");
+    static final int LIMITE_IMPORTACAO = 200;
+    private static final int LIMITE_MENSAGENS = 20;
 
     private final ProfessorRepository professorRepository;
     private final AssuntoRepository assuntoRepository;
@@ -96,6 +102,88 @@ public class BancoDeQuestoesService {
 
         questao.setAtiva(ativa);
         return paraResposta(questao, estatisticas(List.of(questao)).get(questaoId));
+    }
+
+    /** Questões ativas da matéria no formato do JSON de importação (serve como cópia de segurança). */
+    @Transactional(readOnly = true)
+    public List<QuestaoExportada> exportar(String email) {
+        Professor professor = buscarProfessor(email);
+        return bancoRepository.daMateria(professor.getMateria().getId()).stream()
+                .filter(q -> q.isAtiva() && q.getDificuldade() != null)
+                .map(q -> new QuestaoExportada(
+                        q.getAssunto().getNome(),
+                        q.getDificuldade(),
+                        q.getEnunciado(),
+                        List.of(q.getAlternativaA(), q.getAlternativaB(), q.getAlternativaC(), q.getAlternativaD()),
+                        "ABCD".indexOf(q.getRespostaCorreta()),
+                        q.getExplicacao()))
+                .toList();
+    }
+
+    /**
+     * Cadastra várias questões de uma vez. Cada item é avaliado separadamente: os válidos entram,
+     * os repetidos (mesmo enunciado já existente na matéria) são ignorados e os inválidos são
+     * recusados com o motivo.
+     */
+    @Transactional
+    public ResultadoImportacao importar(String email, JsonNode corpo) {
+        if (corpo == null || !corpo.isArray()) {
+            throw new ApiException("O JSON precisa ser uma lista entre colchetes", HttpStatus.BAD_REQUEST);
+        }
+        if (corpo.isEmpty()) {
+            throw new ApiException("A lista está vazia", HttpStatus.BAD_REQUEST);
+        }
+        if (corpo.size() > LIMITE_IMPORTACAO) {
+            throw new ApiException("Envie no máximo " + LIMITE_IMPORTACAO + " questões por vez", HttpStatus.BAD_REQUEST);
+        }
+
+        Professor professor = buscarProfessor(email);
+        Materia materia = professor.getMateria();
+
+        Map<String, Assunto> assuntos = new HashMap<>();
+        assuntoRepository.daMateria(materia.getId())
+                .forEach(a -> assuntos.put(LeitorDeQuestoes.normalizar(a.getNome()), a));
+        Map<String, Long> idPorNome = new HashMap<>();
+        Map<Long, Assunto> porId = new HashMap<>();
+        assuntos.forEach((nome, assunto) -> {
+            idPorNome.put(nome, assunto.getId());
+            porId.put(assunto.getId(), assunto);
+        });
+
+        Set<String> existentes = new HashSet<>();
+        bancoRepository.daMateria(materia.getId())
+                .forEach(q -> existentes.add(LeitorDeQuestoes.normalizar(q.getEnunciado())));
+
+        List<Questao> novas = new ArrayList<>();
+        List<String> erros = new ArrayList<>();
+        int repetidas = 0;
+        int recusadas = 0;
+        Atividade atividade = null;
+
+        for (int i = 0; i < corpo.size(); i++) {
+            try {
+                QuestaoRequest pedido = LeitorDeQuestoes.ler(corpo.get(i), idPorNome);
+                validar(pedido);
+                if (!existentes.add(LeitorDeQuestoes.normalizar(pedido.enunciado()))) {
+                    repetidas++;
+                    continue;
+                }
+                if (atividade == null) {
+                    atividade = atividadeDoBanco(materia);
+                }
+                Questao questao = Questao.builder().atividade(atividade).autor(professor).ativa(true).build();
+                preencher(questao, porId.get(pedido.assuntoId()), pedido);
+                novas.add(questao);
+            } catch (IllegalArgumentException | ApiException erro) {
+                recusadas++;
+                if (erros.size() < LIMITE_MENSAGENS) {
+                    erros.add("Item " + (i + 1) + ": " + erro.getMessage());
+                }
+            }
+        }
+
+        bancoRepository.saveAll(novas);
+        return new ResultadoImportacao(novas.size(), repetidas, recusadas, erros);
     }
 
     /** Regras que a validação por anotação não cobre. As alternativas já chegam não vazias. */
