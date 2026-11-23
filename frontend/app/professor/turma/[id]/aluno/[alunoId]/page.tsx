@@ -11,6 +11,7 @@ import { SITUACAO } from "@/lib/situacao";
 import { dataBrasileira } from "@/lib/revisoes";
 import { AuthGuard } from "@/components/AuthGuard";
 import { GraficoEvolucao } from "@/components/GraficoEvolucao";
+import { RecadosParaAluno } from "@/components/RecadosParaAluno";
 import { Navbar } from "@/components/Navbar";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -142,6 +143,12 @@ export default function DetalheDoAlunoPage() {
                   </ul>
                 )}
               </section>
+
+              <RecadosParaAluno
+                turmaId={id}
+                alunoId={alunoId}
+                nomeAluno={detalhe.data.aluno.nome}
+              />
 
               <section className="space-y-3" aria-labelledby="titulo-evolucao">
                 <h2

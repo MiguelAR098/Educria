@@ -152,3 +152,16 @@ export interface LancarAtividadePayload {
   resumo?: string;
 }
 
+export interface Recado {
+  id: number;
+  texto: string;
+  de: string | null;
+  criadoEm: string;
+  lido: boolean;
+}
+
+export interface RecadosDoAluno {
+  naoLidos: number;
+  recados: Recado[];
+}
+

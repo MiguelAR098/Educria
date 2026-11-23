@@ -8,6 +8,7 @@ import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Trophy } from "lucide-react";
 import { api } from "@/lib/api";
+import { ErroApi, mensagemDeErro } from "@/lib/erros";
 import { nomeDoTipo, PONTOS_ATIVIDADE, TIPOS_ATIVIDADE } from "@/lib/atividades";
 import {
   AtividadeColetiva,
@@ -25,14 +26,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const selectClasses =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600";
-
-type ErroApi = { message?: string; errors?: Record<string, string> };
-
-function mensagemDeErro(error: AxiosError<ErroApi>): string {
-  const dados = error.response?.data;
-  const primeiroCampo = dados?.errors ? Object.values(dados.errors)[0] : undefined;
-  return primeiroCampo || dados?.message || "Não foi possível lançar a atividade. Tente novamente.";
-}
 
 function quando(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
@@ -68,7 +61,7 @@ export default function AtividadesColetivasPage() {
       setResumo("");
       queryClient.invalidateQueries({ queryKey: chave });
     },
-    onError: (error: AxiosError<ErroApi>) => toast.error(mensagemDeErro(error)),
+    onError: (error: AxiosError<ErroApi>) => toast.error(mensagemDeErro(error, "Não foi possível lançar a atividade. Tente novamente.")),
   });
 
   const proibido = (historico.error as AxiosError | null)?.response?.status === 403;

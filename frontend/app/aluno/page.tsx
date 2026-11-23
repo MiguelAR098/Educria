@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, CheckCheck, ChevronRight, Clock3, History, Play, RefreshCw } from "lucide-react";
+import { BarChart3, CalendarDays, CheckCheck, ChevronRight, Clock3, History, MessageSquare, Play, RefreshCw } from "lucide-react";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
@@ -16,7 +16,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { useChaveAluno } from "@/lib/estudo";
 import { inicio, situacoes, useHistorico } from "@/lib/historico";
 import { dataBrasileira, useAgenda } from "@/lib/revisoes";
-import type { DesempenhoAluno, PontosTurma } from "@/lib/types";
+import type { DesempenhoAluno, PontosTurma, RecadosDoAluno } from "@/lib/types";
 
 function Painel() {
   const aluno = useChaveAluno();
@@ -30,6 +30,10 @@ function Painel() {
   const turma = useQuery({
     queryKey: ["aluno-turma-pontos", aluno],
     queryFn: async ({ signal }) => (await api.get<PontosTurma>("/api/aluno/turma/pontos", { signal })).data,
+  });
+  const recadosNaoLidos = useQuery({
+    queryKey: ["aluno-recados-resumo", aluno],
+    queryFn: async ({ signal }) => (await api.get<RecadosDoAluno>("/api/aluno/recados", { signal })).data.naoLidos,
   });
   const agenda = useAgenda();
   const historico = useHistorico();
@@ -50,6 +54,12 @@ function Painel() {
           <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/revisoes"><CalendarDays aria-hidden size={16} /> Minhas revisões</Link>
           <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/historico"><History aria-hidden size={16} /> Histórico de sessões</Link>
           <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/evolucao"><BarChart3 aria-hidden size={16} /> Evolução da aprendizagem</Link>
+          <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/recados">
+            <MessageSquare aria-hidden size={16} /> Recados do professor
+            {!!recadosNaoLidos.data && (
+              <span aria-label={`${recadosNaoLidos.data} não lidos`} className="rounded-full bg-indigo-700 px-2 py-0.5 text-xs font-bold text-white">{recadosNaoLidos.data}</span>
+            )}
+          </Link>
           <button type="button" aria-label="Atualizar dados" title="Atualizar dados" disabled={atualizando} onClick={() => cache.refetchQueries({ type: "active" })}
             className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-indigo-50 disabled:opacity-60">
             <RefreshCw aria-hidden size={16} className={atualizando ? "motion-safe:animate-spin" : ""} />

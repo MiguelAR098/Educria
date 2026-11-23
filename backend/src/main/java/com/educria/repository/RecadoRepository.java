@@ -1,0 +1,28 @@
+package com.educria.repository;
+
+import com.educria.domain.entity.Recado;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface RecadoRepository extends JpaRepository<Recado, Long> {
+
+    @Query("""
+            select r from Recado r
+            left join fetch r.professor
+            where r.aluno.id = :alunoId
+            order by r.criadoEm desc, r.id desc
+            """)
+    List<Recado> doAluno(@Param("alunoId") Long alunoId, Pageable pagina);
+
+    long countByAlunoIdAndLidoEmIsNull(Long alunoId);
+
+    @Modifying
+    @Query("update Recado r set r.lidoEm = :agora where r.aluno.id = :alunoId and r.lidoEm is null")
+    int marcarTodosComoLidos(@Param("alunoId") Long alunoId, @Param("agora") LocalDateTime agora);
+}

@@ -26,6 +26,8 @@ public interface AlunoRepository extends JpaRepository<Aluno, Long> {
 
     long countByTurmaId(Long turmaId);
 
+    Optional<Aluno> findByIdAndTurmaId(Long id, Long turmaId);
+
     @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.desempenhoAdaptativo WHERE a.turma.id = :turmaId ORDER BY a.nome")
     List<Aluno> findByTurmaIdComDesempenho(@Param("turmaId") Long turmaId);
 
