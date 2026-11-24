@@ -24,7 +24,7 @@ public class Atividade {
     @Column(nullable = false, length = 200)
     private String titulo;
 
-    @Column(columnDefinition = "TEXT")
+    @Column(length = org.hibernate.Length.LONG32)
     private String enunciado;
 
     @Column(name = "nivel_recomendado")

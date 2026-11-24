@@ -3,9 +3,11 @@ package com.educria.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -27,7 +29,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class SessaoEstudoIT {
+@EnabledIfEnvironmentVariable(named = IntegracaoSqlServer.VARIAVEL_URL, matches = ".+")
+class SessaoEstudoIT extends IntegracaoSqlServer {
     private static final String BASE = "/api/aluno/sessoes";
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
     private static final String AGENDA = "/api/aluno/revisoes";
@@ -44,15 +47,15 @@ class SessaoEstudoIT {
     void preparar() throws Exception {
         when(relogio.getZone()).thenReturn(FUSO);
         when(relogio.instant()).thenReturn(Instant.parse("2027-01-01T02:59:59Z"));
-        materia = id("insert into materias(nome) values (?) returning id", prefixo);
-        assunto = id("insert into assuntos(materia_id,nome) values (?, 'Assunto teste') returning id", materia);
-        vazio = id("insert into assuntos(materia_id,nome) values (?, 'Sem questões') returning id", materia);
-        atividade = id("insert into atividades(titulo) values (?) returning id", prefixo);
+        materia = id("insert into materias(nome) output inserted.id values (?)", prefixo);
+        assunto = id("insert into assuntos(materia_id,nome) output inserted.id values (?, 'Assunto teste')", materia);
+        vazio = id("insert into assuntos(materia_id,nome) output inserted.id values (?, N'Sem questões')", materia);
+        atividade = id("insert into atividades(titulo) output inserted.id values (?)", prefixo);
         db.update("""
                 insert into questoes(atividade_id, assunto_id, dificuldade, enunciado, alternativa_a,
                     alternativa_b, alternativa_c, alternativa_d, resposta_correta, explicacao)
-                select ?, ?, 1, 'Questão ' || n, 'a', 'b', 'c', 'd', 'A', 'Explicação'
-                from generate_series(1,12) n
+                select ?, ?, 1, concat(N'Questão ', n), 'a', 'b', 'c', 'd', 'A', N'Explicação'
+                from (values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12)) as itens(n)
                 """, atividade, assunto);
         token = cadastrar("titular");
     }
@@ -87,8 +90,8 @@ class SessaoEstudoIT {
         assertTrue(semJwt == 401 || semJwt == 403);
 
         long admin = id("""
-                insert into usuarios(nome,email,senha,perfil) select 'Admin',?,senha,'ADMIN'
-                from usuarios where id=? returning id
+                insert into usuarios(nome,email,senha,perfil) output inserted.id
+                select 'Admin',?,senha,'ADMIN' from usuarios where id=?
                 """, prefixo+"-admin@example.test", usuarios.getFirst());
         usuarios.add(admin);
         db.update("insert into admins(usuario_id) values (?)", admin);
@@ -143,22 +146,23 @@ class SessaoEstudoIT {
     }
 
     @Test
-    void ignoraRespostaComTitularDivergenteNaConsultaERejeitaPassoOcupado() throws Exception {
+    void rejeitaRespostaComTitularDivergenteEAlteracaoDePassoOcupado() throws Exception {
         cadastrar("outro");
         var estado = abrir(assunto, 201);
         long sessao = estado.at("/sessao/id").asLong();
         long questao = estado.at("/questaoAtual/id").asLong();
-        db.update("""
+        assertThrows(DataIntegrityViolationException.class, () -> db.update("""
                 insert into respostas_aluno (aluno_id, sessao_id, questao_id, passo, resposta_dada, correta, reaprender)
-                values (?, ?, ?, 1, 'B', false, true)
-                """, usuarios.getLast(), sessao, questao);
+                values (?, ?, ?, 1, 'B', 0, 1)
+                """, usuarios.getLast(), sessao, questao));
 
         var consultada = call(get(BASE + "/" + sessao), token, 200);
         assertFalse(consultada.has("feedback"));
         assertEquals(0, consultada.get("pendencias").asInt());
-        call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 409);
-        call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "B"))), token, 409);
         assertEquals(0, call(get(BASE + "/" + sessao + "/resultado"), token, 200).at("/sessao/tentativas").asInt());
+        call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200);
+        call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "A", "passo", 1))), token, 409);
+        assertEquals(1, call(get(BASE + "/" + sessao + "/resultado"), token, 200).at("/sessao/tentativas").asInt());
         assertEquals(1, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
     }
 
@@ -261,7 +265,7 @@ class SessaoEstudoIT {
         assertEquals(incorreta, call(get(rota), token, 200).get("feedback"));
         assertEquals(1, id("""
                 select count(*) from respostas_aluno where aluno_id=? and sessao_id=? and questao_id=?
-                and resposta_dada='C' and not correta
+                and resposta_dada='C' and correta=0
                 """, usuarios.getFirst(), sessao, q1));
         JsonNode proxima = call(put(rota + "/questoes/2"), token, 200);
         assertFalse(proxima.has("feedback"));
@@ -301,7 +305,7 @@ class SessaoEstudoIT {
     void evolucaoIsoladaProtegePrimeiroErroEConservaHistorico() throws Exception {
         long aluno = usuarios.getFirst();
         cadastrar("colega");
-        long turma = id("insert into turmas(nome) values (?) returning id", prefixo);
+        long turma = id("insert into turmas(nome) output inserted.id values (?)", prefixo);
         try {
             db.update("update alunos set turma_id=? where usuario_id=?", turma, aluno);
             db.update("insert into pontuacao_coletiva(turma_id,pontos_totais) values (?,37)", turma);
@@ -339,7 +343,7 @@ class SessaoEstudoIT {
         long sessao = estado.at("/sessao/id").asLong();
         db.update("""
                 insert into respostas_aluno(aluno_id,sessao_id,questao_id,passo,resposta_dada,correta)
-                values (?,?,?,1,'A',true)
+                values (?,?,?,1,'A',1)
                 """, aluno, sessao, estado.at("/questaoAtual/id").asLong());
         var acerto = body(Map.of("alternativa","A"));
         var legado = call(put(rotaResposta(estado)).content(acerto), token, 200);
@@ -425,7 +429,7 @@ class SessaoEstudoIT {
                 values (?,?,'2026-01-01')
                 """, aluno, atividade);
         assertEquals(0, call(get(AGENDA), token, 200).get("pendentes").size());
-        var ids = db.queryForList("select id from questoes where atividade_id=? order by id limit 4", Long.class, atividade);
+        var ids = db.queryForList("select top (4) id from questoes where atividade_id=? order by id", Long.class, atividade);
         for (var q : ids) {
             db.update("insert into repeticao_espacada(aluno_id,questao_id,proxima_revisao) values (?,?,'2026-12-01')", aluno, q);
         }
@@ -544,7 +548,7 @@ class SessaoEstudoIT {
     private long inserirSessao(long assuntoId, String situacao) {
         return id("""
                 insert into sessoes_estudo(aluno_id, assunto_id, situacao, iniciada_em, atualizada_em)
-                values (?, ?, ?, now(), now()) returning id
+                output inserted.id values (?, ?, ?, sysdatetimeoffset(), sysdatetimeoffset())
                 """, usuarios.getFirst(), assuntoId, situacao);
     }
 
@@ -552,9 +556,9 @@ class SessaoEstudoIT {
     void comparaPorIdDeAssuntoAlemDaPrimeiraPagina() throws Exception {
         inserirSessao(assunto, "ENCERRADA");
         long anterior = inserirSessao(assunto, "ENCERRADA");
-        long outraMateria = id("insert into materias(nome) values (?) returning id", prefixo + "-outra");
+        long outraMateria = id("insert into materias(nome) output inserted.id values (?)", prefixo + "-outra");
         try {
-            long homonimo = id("insert into assuntos(materia_id,nome) values (?, 'Assunto teste') returning id", outraMateria);
+            long homonimo = id("insert into assuntos(materia_id,nome) output inserted.id values (?, 'Assunto teste')", outraMateria);
             for (int n = 0; n < 25; n++) inserirSessao(homonimo, "ENCERRADA");
             long atual = inserirSessao(assunto, "ENCERRADA");
             inserirSessao(assunto, "ENCERRADA");
@@ -580,10 +584,7 @@ class SessaoEstudoIT {
 
     @Test
     void paginaHistoricoSemRepetirSessoes() throws Exception {
-        db.update("""
-                insert into sessoes_estudo(aluno_id,assunto_id,situacao,iniciada_em,atualizada_em)
-                select ?,?,'ENCERRADA',now(),now() from generate_series(1,21)
-                """, usuarios.getFirst(), assunto);
+        for (int i = 0; i < 21; i++) inserirSessao(assunto, "ENCERRADA");
         var pagina = call(get(BASE + "/historico"), token, 200);
         assertEquals(20, pagina.get("sessoes").size());
         long cursor = pagina.get("proximoCursor").asLong();
@@ -638,7 +639,7 @@ class SessaoEstudoIT {
         assertEquals(10, vistas.size());
         call(put(rota + "/questoes/15"), token, 409);
         assertEquals(0, call(put(rota + "/encerrar"), token, 200).get("pendencias").asInt());
-        db.update("update respostas_aluno set respondido_em=timestamp '2026-12-31 12:00:00' where sessao_id=?", sessao);
+        db.update("update respostas_aluno set respondido_em=? where sessao_id=?", LocalDate.of(2026, 12, 31).atTime(12, 0), sessao);
         var resultado = call(get(rota + "/resultado"), token, 200);
         assertEquals(10, resultado.at("/sessao/apresentadas").asInt());
         assertEquals(10, resultado.at("/sessao/respondidas").asInt());
@@ -706,10 +707,10 @@ class SessaoEstudoIT {
         }
 
         assertEquals(primeira, call(put(urlResposta).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200));
-        assertEquals(4, id("select count(*) from respostas_aluno where sessao_id=? and not correta", sessao));
+        assertEquals(4, id("select count(*) from respostas_aluno where sessao_id=? and correta=0", sessao));
         assertEquals(0, id("select count(*) from repeticao_espacada where aluno_id=?", usuarios.getFirst()));
         call(put(rota + "/encerrar"), token, 409);
-        db.update("update respostas_aluno set respondido_em=timestamp '2026-12-31 12:00:00' where sessao_id=?", sessao);
+        db.update("update respostas_aluno set respondido_em=? where sessao_id=?", LocalDate.of(2026, 12, 31).atTime(12, 0), sessao);
         var historico = call(get(rota + "/resultado"), token, 200).get("sessao");
         assertEquals(0, historico.get("acertos").asInt());
         assertEquals(4, historico.get("tentativas").asInt());

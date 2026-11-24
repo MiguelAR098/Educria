@@ -21,14 +21,15 @@ function post(caminho, dados, headers = {}) {
 }
 
 function consultar(sql) {
-  return execFileSync("docker", ["compose", "exec", "-T", "db", "psql", "-XAt",
-    "-v", "ON_ERROR_STOP=1", "-U", "educria", "-d", "educria", "-c", sql],
+  return execFileSync("docker", ["compose", "exec", "-T", "db", "sh", "-c",
+    'export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"; exec /opt/mssql-tools18/bin/sqlcmd -S localhost -C -U sa -d educria -b -h -1 -W -Q "$1"',
+    "sqlcmd", `SET NOCOUNT ON; ${sql}`],
     { encoding: "utf8" }).trim();
 }
 
-assert.equal(consultar("SHOW server_version_num").slice(0, 2), "16");
-assert.equal(consultar("SELECT string_agg(version, ',' ORDER BY installed_rank) FROM flyway_schema_history WHERE success AND version IN ('1','2','3','4')"), "1,2,3,4");
-console.log("OK · PostgreSQL 16 e Flyway V1 a V4");
+assert.ok(Number(consultar("SELECT SERVERPROPERTY('ProductMajorVersion')")) >= 15);
+assert.equal(consultar("SELECT STRING_AGG(version, ',') WITHIN GROUP (ORDER BY installed_rank) FROM dbo.flyway_schema_history WHERE success=1 AND version IN ('1','2')"), "1,2");
+console.log("OK · SQL Server e Flyway V1 e V2");
 
 const preflight = await fetch(base + "/api/auth/register", {
   method: "OPTIONS",
@@ -70,7 +71,7 @@ console.log("OK · cadastro 201, login JWT, dados do dashboard e autorização p
 
 assert.equal(consultar(`SELECT count(*) FROM desempenho_por_assunto d
   JOIN assuntos s ON s.id=d.assunto_id JOIN materias m ON m.id=s.materia_id
-  JOIN usuarios u ON u.id=d.aluno_id WHERE u.email='${email}' AND m.nome='Matemática'
+  JOIN usuarios u ON u.id=d.aluno_id WHERE u.email='${email}' AND m.nome=N'Matemática'
   AND d.nivel_atual=1 AND d.total_acertos=0 AND d.total_erros=0 AND d.erros_consecutivos=0`), "8");
 console.log("OK · aluno de teste com os oito assuntos no nível 1");
 

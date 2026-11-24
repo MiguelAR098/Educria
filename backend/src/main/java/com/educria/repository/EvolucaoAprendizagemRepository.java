@@ -17,44 +17,53 @@ public class EvolucaoAprendizagemRepository {
     // Primeira tentativa é avaliada pelo passo na sessão, inclusive antes do período.
     // Respostas legadas sem sessão entram nas contagens, mas ficam sem classificação de tentativa.
     private static final String AGREGAR = """
-            with eventos as (
-                select s.assunto_id, null::date as dia, null::bigint as questao_id, null::boolean as correta,
-                       false as erro_contabilizado,
-                       null::boolean as primeira, null::integer as nivel_anterior, null::integer as nivel_atual,
-                       null::timestamp as respondido_em, null::bigint as resposta_id
-                from sessoes_estudo s
-                where s.aluno_id = :alunoId and s.iniciada_em >= :inicioSessao and s.iniciada_em < :fimSessao
-                  and (:assuntoId is null or s.assunto_id = :assuntoId)
-                union all
-                select coalesce(s.assunto_id, q.assunto_id), r.respondido_em::date, r.questao_id, r.correta,
+            with respostas_periodo as (
+                select coalesce(s.assunto_id, q.assunto_id) as assunto_id, cast(r.respondido_em as date) as dia,
+                       r.questao_id, cast(r.correta as integer) as correta,
+                       case when
             """ + ErrosDiarios.PRIMEIRO_ERRO + """
-                       as erro_contabilizado,
-                       case when s.id is not null then not exists (
+                       then 1 else 0 end as erro_contabilizado,
+                       case when s.id is not null and not exists (
                            select 1 from respostas_aluno anterior
                            where anterior.sessao_id = r.sessao_id and anterior.questao_id = r.questao_id
                              and anterior.aluno_id = r.aluno_id and anterior.passo < r.passo
-                       ) end,
-                       r.nivel_anterior, r.nivel_atual, r.respondido_em, r.id
+                       ) then 1 when s.id is not null then 0 end as primeira,
+                       r.nivel_anterior, r.nivel_atual,
+                       row_number() over (partition by coalesce(s.assunto_id, q.assunto_id)
+                           order by r.respondido_em, r.id) as inicio_nivel,
+                       row_number() over (partition by coalesce(s.assunto_id, q.assunto_id)
+                           order by r.respondido_em desc, r.id desc) as fim_nivel
                 from respostas_aluno r
                 left join sessoes_estudo s on s.id = r.sessao_id and s.aluno_id = r.aluno_id
                 left join questoes q on r.sessao_id is null and q.id = r.questao_id
                 where r.aluno_id = :alunoId and r.respondido_em >= :inicioResposta and r.respondido_em < :fimResposta
                   and (r.sessao_id is null or s.id is not null)
                   and (:assuntoId is null or coalesce(s.assunto_id, q.assunto_id) = :assuntoId)
+            ), eventos as (
+                select s.assunto_id, cast(null as date) as dia, cast(null as bigint) as questao_id,
+                       cast(null as integer) as correta, 0 as erro_contabilizado, cast(null as integer) as primeira,
+                       cast(null as integer) as nivel_anterior, cast(null as integer) as nivel_atual,
+                       cast(null as bigint) as inicio_nivel, cast(null as bigint) as fim_nivel
+                from sessoes_estudo s
+                where s.aluno_id = :alunoId and s.iniciada_em >= :inicioSessao and s.iniciada_em < :fimSessao
+                  and (:assuntoId is null or s.assunto_id = :assuntoId)
+                union all
+                select assunto_id, dia, questao_id, correta, erro_contabilizado, primeira,
+                       nivel_anterior, nivel_atual, inicio_nivel, fim_nivel
+                from respostas_periodo
             )
-            select grouping(a.id, e.dia) = 3 as geral, a.id as assunto_id, a.nome, e.dia,
-                   count(*) filter (where e.questao_id is null) as sessoes_iniciadas,
+            select case when grouping(a.id) = 1 and grouping(e.dia) = 1 then 1 else 0 end as geral,
+                   a.id as assunto_id, a.nome, e.dia,
+                   count(case when e.questao_id is null then 1 end) as sessoes_iniciadas,
                    count(e.questao_id) as tentativas, count(distinct e.questao_id) as questoes_unicas,
-                   count(*) filter (where e.correta) as acertos,
-                   count(*) filter (where not e.correta) as tentativas_incorretas,
-                   count(*) filter (where e.erro_contabilizado) as erros,
-                   count(*) filter (where not e.primeira) as tentativas_reaprendizagem,
-                   count(*) filter (where e.primeira) as primeiras_tentativas,
-                   count(*) filter (where e.primeira and e.correta) as primeiras_corretas,
-                   (array_agg(e.nivel_anterior order by e.respondido_em, e.resposta_id)
-                       filter (where e.questao_id is not null))[1] as nivel_inicial_observado,
-                   (array_agg(e.nivel_atual order by e.respondido_em desc, e.resposta_id desc)
-                       filter (where e.questao_id is not null))[1] as nivel_final_observado
+                   count(case when e.correta = 1 then 1 end) as acertos,
+                   count(case when e.correta = 0 then 1 end) as tentativas_incorretas,
+                   count(case when e.erro_contabilizado = 1 then 1 end) as erros,
+                   count(case when e.primeira = 0 then 1 end) as tentativas_reaprendizagem,
+                   count(case when e.primeira = 1 then 1 end) as primeiras_tentativas,
+                   count(case when e.primeira = 1 and e.correta = 1 then 1 end) as primeiras_corretas,
+                   max(case when e.inicio_nivel = 1 then e.nivel_anterior end) as nivel_inicial_observado,
+                   max(case when e.fim_nivel = 1 then e.nivel_atual end) as nivel_final_observado
             from eventos e
             left join assuntos a on a.id = e.assunto_id
             group by grouping sets ((), (a.id, a.nome), (e.dia))

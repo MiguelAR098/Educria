@@ -54,9 +54,10 @@ public class EvolucaoAprendizagemService {
         var inicio = hoje.minusDays(DIAS - 1);
         var fimExclusivo = hoje.plusDays(1);
         var linhas = evolucao.agregar(alunoId, assuntoId, inicio, fimExclusivo, relogio.getZone());
-        var geral = linhas.stream().filter(Linha::geral).findFirst().orElseThrow();
-        var resumo = new Resumo(geral.sessoesIniciadas(), geral.tentativas(), geral.acertos(), geral.tentativasIncorretas(), geral.erros(),
-                geral.questoesUnicas(), geral.tentativasReaprendizagem(), taxa(geral));
+        var resumo = linhas.stream().filter(Linha::geral).findFirst()
+                .map(geral -> new Resumo(geral.sessoesIniciadas(), geral.tentativas(), geral.acertos(),
+                        geral.tentativasIncorretas(), geral.erros(), geral.questoesUnicas(), geral.tentativasReaprendizagem(), taxa(geral)))
+                .orElseGet(() -> new Resumo(0, 0, 0, 0, 0, 0, 0, null));
 
         var porDia = linhas.stream().filter(linha -> linha.dia() != null)
                 .collect(Collectors.toMap(Linha::dia, Function.identity()));

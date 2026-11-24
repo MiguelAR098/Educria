@@ -29,10 +29,10 @@ public class Questao {
     private Integer dificuldade;
 
     @JsonIgnore
-    @Column(columnDefinition = "TEXT")
+    @Column(length = org.hibernate.Length.LONG32)
     private String explicacao;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, length = org.hibernate.Length.LONG32)
     private String enunciado;
 
     @Column(name = "alternativa_a", length = 500)

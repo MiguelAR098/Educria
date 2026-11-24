@@ -1,80 +1,53 @@
-# Iniciar o EDUCRIA no GitHub Codespaces
+# Apresentar o EDUCRIA no GitHub Codespaces
 
-Você precisa de uma conta no GitHub com acesso a Codespaces e do arquivo `educria-codespaces.zip`. Todo o processo pode ser feito no navegador.
+## Abrir a branch oficial de validação
 
-## 1. Colocar o projeto no GitHub · uma vez
-
-1. No GitHub, clique em **New repository**. Dê um nome como `educria`, marque **Private**, ative **Add a README file** e clique em **Create repository**.
-2. No repositório, clique em **Code → Codespaces → Create codespace on main**. Aguarde o editor abrir.
-3. No painel **Explorer** à esquerda, arraste o arquivo **educria-codespaces.zip** do seu computador para a pasta principal, ao lado do README. Aguarde o envio terminar.
-4. Abra **Terminal → New Terminal**. Cole o bloco abaixo. Ele extrai o projeto e envia os arquivos ao seu repositório. O próprio ZIP fica fora do commit.
+Quando a equipe tiver publicado manualmente a branch oficial de validação, abra essa branch no repositório EDUCRIA e use **Code → Codespaces → Create codespace**. Confirme o nome da branch e o commit no terminal. Um Codespace recebe o conteúdo publicado na branch. [Criação de um Codespace no GitHub](https://docs.github.com/en/codespaces/developing-in-a-codespace/creating-a-codespace-for-a-repository)
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-unzip -o educria-codespaces.zip
-git add .
-git commit -m "Adicionar EDUCRIA consolidado para Codespaces"
-git push
+git status --short --branch
+git log -1 --oneline
+docker compose version
 ```
 
-5. Pressione **F1**, procure **Codespaces: Rebuild Container** e confirme. Aguarde a reconstrução terminar. Isso instala no Codespace as versões de Java, Maven, Node e Docker usadas pelo projeto.
+O Dev Container configura Java 21, Maven, Node 22 e Docker-in-Docker. O Compose usa a imagem **SQL Server 2022 Developer**, do ramo 16.x. A demonstração Windows anteriormente validada usou **SQL Server Express 2025**, ramo 17.x. [Roteiro Windows](docs/sqlserver/APRESENTAR_WINDOWS.md)
 
-Se o repositório já mostra `.devcontainer/`, `backend/`, `frontend/` e `compose.yaml` na página principal, basta abrir um Codespace novo nesse repositório e seguir o passo 2.
+## Subir a demonstração em um Codespace limpo
 
-## Atualizar um Codespace já existente
-
-1. No terminal que executa o projeto, pressione **Ctrl+C**. Guarde suas alterações locais caso tenha editado o código.
-2. Envie o ZIP completo atualizado para a raiz do mesmo Codespace, com o nome `educria-codespaces.zip`. Substitua o ZIP antigo.
-3. Na raiz, extraia o backend e o frontend juntos e reconstrua a aplicação com as questões de demonstração.
+Para a apresentação, use o perfil `dev`. Em um Codespace limpo, o iniciador cria a base `educria` dentro do contêiner de desenvolvimento e o Flyway aplica V1 e V2. O callback acrescenta as 80 questões de Matemática.
 
 ```bash
-unzip -o educria-codespaces.zip
 SPRING_PROFILES_ACTIVE=dev bash scripts/iniciar.sh
 ```
 
-Quando aparecer **Ready**, abra a porta **3000** e recarregue a página com **Ctrl+Shift+R**. A atualização preserva o volume do PostgreSQL e o arquivo `.env`.
-
-No topo do painel de aluno, abra **Histórico de sessões**. Para testar uma resposta, clique em **Fazer atividade**, escolha um assunto, inicie a sessão, marque A–D e clique em **Enviar resposta**. A correção aparece na mesma questão. **Próxima questão** avança depois da correção. Ao encerrar, abra **Suas respostas** no resultado para conferir cada questão e a alternativa enviada. Sessões de versões que apenas apresentavam questões podem ter itens sem resposta registrada.
-
-## 2. Iniciar o EDUCRIA
-
-Abra um terminal na pasta principal e execute:
+O modo padrão usa o comando abaixo. Uma base nova recebe schema e catálogo, com zero questões antes de qualquer carga ou cadastro.
 
 ```bash
 bash scripts/iniciar.sh
 ```
 
-O comando prepara as credenciais no primeiro uso, inicia o PostgreSQL 16, compila e testa o backend, instala as dependências do frontend e compila o Next. Em seguida, o Spring aplica as migrations e o Next começa a atender. A primeira execução demora mais por causa dos downloads. **Deixe esse terminal aberto e aguarde aparecer `Ready`.**
+O iniciador prepara o arquivo privado `.env`, espera o banco ficar saudável, empacota o backend e inicia o Next.js. Mantenha esse terminal aberto e aguarde `Ready`. O Codespace só precisa encaminhar a porta **3000**. Mantenha a visibilidade **Private**. A API usa internamente 8080 e o SQL Server usa 1433 no loopback do Codespace.
 
-## 3. Abrir o site e testar
+## Conferir os fluxos
 
-1. Na parte inferior do editor, abra **Portas** ou **Ports**, ao lado de **Terminal**. Na linha **3000 · EDUCRIA**, clique no ícone de globo para abrir o site em outra aba. Mantenha a visibilidade **Private**. A aplicação usa internamente as portas 8080 e 5432.
-2. No site, abra **Cadastre-se gratuitamente**. Informe nome, e-mail e uma senha de teste com pelo menos seis caracteres. Deixe turma e matrícula em branco. Envie o cadastro.
-3. Você deve chegar ao painel do aluno com nível **1/10**, zero acertos e zero erros. Clique em **Sair**, faça login com o mesmo e-mail e senha e confira se o painel volta a abrir.
-
-**Verificação automática opcional.** Com o site em execução, abra um **segundo terminal** na pasta principal e rode:
+1. Abra a porta 3000 pela aba **Ports**. Registre um aluno sintético e teste login, matéria, sessão, resposta, histórico e a evolução de 30 dias.
+2. Prepare um professor sintético com matéria e turma vinculadas para testar login, acompanhamento e recados. O callback `dev` cria as questões. O cadastro público cria apenas alunos. O provisionamento do professor na base `dev` é uma etapa da equipe.
+3. Com o iniciador rodando, execute o verificador no segundo terminal. Ele usa a base de desenvolvimento, cria uma conta sintética e verifica o `Flyway`, autenticação e catálogo.
+4. Registre branch, commit, versão do banco e resultados de cada fluxo em uma sessão limpa. O verificador automático cobre o cadastro e o catálogo. A sessão, a evolução e o fluxo do professor exigem passos adicionais.
 
 ```bash
+docker compose ps
 node scripts/verificar.mjs
 ```
 
-O teste cria um aluno de teste, confere as migrations e os oito assuntos, testa o cadastro com o cabeçalho do frontend e uma origem HTTPS diferente da configurada no servidor, verifica o JWT e testa a recusa de acesso sem token e com perfil inadequado. Cada etapa aprovada imprime `OK`. Para conferir no próprio navegador, abra **F12 → Rede**, faça um novo cadastro e procure `/api/auth/register` com status **201** no mesmo endereço HTTPS do site.
+## Separar as provas acadêmicas
 
-## 4. Parar e voltar depois
+Reserve a base `educria` deste contêiner para a demonstração da aplicação. Use **outra base nova, descartável e marcada** para as provas acadêmicas. Aplique somente V1 e V2 na segunda base, com configuração padrão. Depois execute a carga acadêmica, as verificações e as consultas antes de criar contas pelo site. O seed acadêmico depende de tabelas de usuários, turmas e atividades vazias.
 
-1. No terminal do iniciador, pressione **Ctrl+C** para encerrar o site e a API.
-2. Para parar também o banco, execute `docker compose stop db`. Os dados ficam no volume `dados`.
-3. Em **github.com/codespaces**, abra o menu **…** do Codespace e escolha **Stop codespace**.
-4. Para voltar, reabra **o mesmo Codespace** e execute novamente `bash scripts/iniciar.sh`. O banco volta com os cadastros e a chave JWT anterior.
+O iniciador fixa a URL de desenvolvimento em `educria`. A segunda base precisa de uma execução independente de Flyway apontada explicitamente para ela. O script de apoio PowerShell foi preparado para Windows com autenticação integrada. A execução equivalente no contêiner Linux requer uma sessão local de `sqlcmd`, confirmação do nome e do marcador e fornecimento do BCrypt pelo procedimento acadêmico. O roteiro Windows é a referência de reprodução disponível para essa parte. [Roteiro da carga acadêmica e verificações](docs/sqlserver/README.md#execução-no-windows)
 
-Guarde o arquivo `.env` gerado dentro desse Codespace. Ele é ignorado pelo Git. Excluir o Codespace ou apagar o volume de dados remove a instalação local do banco.
+Para parar a aplicação, use **Ctrl+C** no terminal do iniciador. `docker compose stop db` para o contêiner e preserva os dados do volume `mssql_dados`. As credenciais do `.env` são exclusivas do desenvolvimento.
 
-## Se algo travar
+## Estado da validação
 
-| O que aparece | O que fazer |
-|---|---|
-| Comando `mvn`, `docker` ou `node` ausente | Confirme que há uma pasta `.devcontainer` na raiz do repositório. Faça **F1 → Codespaces: Rebuild Container** e abra um terminal novo. |
-| A porta 3000 ainda não aparece | Confira se o terminal chegou a `Ready`. Depois abra **Portas → Forward a Port** e digite `3000`. |
-| O cadastro falha | Abra a porta **3000** em outra aba pelo globo, confira a primeira mensagem de erro no terminal do iniciador e rode a verificação automática. Use um e-mail novo para cada cadastro. |
-
-Ajuda do GitHub sobre [como abrir uma porta do Codespace](https://docs.github.com/pt/codespaces/developing-in-a-codespace/forwarding-ports-in-your-codespace) e [como reconstruir o contêiner](https://docs.github.com/pt/codespaces/developing-in-a-codespace/rebuilding-the-container-in-a-codespace).
+O roteiro, a configuração e os comandos foram conferidos nesta revisão. **A execução ponta a ponta em Codespace limpo está pendente.** Para encerrá-la, a equipe precisa disponibilizar manualmente a branch oficial com estes arquivos, usar um Codespace com Docker operacional e registrar aluno, professor, sessão, evolução e provas acadêmicas. [Matriz de validação](docs/sqlserver/REVISAO_2_DE_ENTREGA.md)

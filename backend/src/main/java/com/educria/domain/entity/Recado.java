@@ -28,7 +28,7 @@ public class Recado {
     @JoinColumn(name = "aluno_id", nullable = false)
     private Aluno aluno;
 
-    /** Nulo se o professor foi removido depois de enviar o recado. */
+    /** Referência opcional para registros legados. Um professor vinculado fica protegido pela FK. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "professor_id")
     private Professor professor;
