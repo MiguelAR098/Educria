@@ -83,7 +83,7 @@ public class AtividadeColetivaService {
                 .orElseThrow(() -> new ApiException("Você não leciona nesta turma", HttpStatus.FORBIDDEN));
     }
 
-    private static AtividadeColetivaResponse paraResposta(AtividadeColetiva a) {
+    static AtividadeColetivaResponse paraResposta(AtividadeColetiva a) {
         return new AtividadeColetivaResponse(
                 a.getId(),
                 a.getTipo(),

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BarChart3, CalendarDays, CheckCheck, ChevronRight, Clock3, History, MessageSquare, Play, RefreshCw } from "lucide-react";
+import { BarChart3, CalendarDays, CheckCheck, ChevronRight, Clock3, History, MessageSquare, Play, RefreshCw, Users } from "lucide-react";
 import { useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
@@ -64,6 +64,9 @@ function Painel() {
             className="ml-auto grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 hover:bg-indigo-50 disabled:opacity-60">
             <RefreshCw aria-hidden size={16} className={atualizando ? "motion-safe:animate-spin" : ""} />
           </button>
+          <Link className="inline-flex items-center gap-2 rounded py-1.5 text-slate-700 hover:text-indigo-700" href="/aluno/turma">
+            <Users aria-hidden size={16} /> O que a turma fez junto
+          </Link>
         </nav>
       </header>
 

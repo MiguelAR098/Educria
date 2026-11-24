@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { ErroApi, mensagemDeErro } from "@/lib/erros";
 import { BancoDeQuestoes, QuestaoDoProfessor, QuestaoPayload } from "@/lib/types";
 import { AuthGuard } from "@/components/AuthGuard";
+import { AssuntosDaMateria } from "@/components/AssuntosDaMateria";
 import { FormularioQuestao } from "@/components/FormularioQuestao";
 import { ImportarExportarQuestoes } from "@/components/ImportarExportarQuestoes";
 import { Navbar } from "@/components/Navbar";
@@ -77,6 +78,7 @@ export default function BancoDeQuestoesPage() {
   });
 
   const assuntos = banco.data?.assuntos ?? [];
+  const semAssuntos = assuntos.length === 0;
 
   return (
     <AuthGuard allowedRole="PROFESSOR">
@@ -104,11 +106,11 @@ export default function BancoDeQuestoesPage() {
             </div>
             {banco.data && (
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => setAbrirJson((aberto) => !aberto)}>
+                <Button variant="outline" disabled={semAssuntos} onClick={() => setAbrirJson((aberto) => !aberto)}>
                   <FileJson className="mr-2 h-4 w-4" /> Importar / exportar JSON
                 </Button>
                 {!criando && (
-                  <Button onClick={() => { setCriando(true); setEditandoId(null); }}>
+                  <Button disabled={semAssuntos} onClick={() => { setCriando(true); setEditandoId(null); }}>
                     <Plus className="mr-2 h-4 w-4" /> Nova questão
                   </Button>
                 )}
@@ -123,6 +125,8 @@ export default function BancoDeQuestoesPage() {
 
           {banco.data && (
             <>
+              <AssuntosDaMateria materia={banco.data.materia} assuntos={assuntos} aoCriar={atualizarLista} />
+
               {abrirJson && (
                 <Card className="shadow-md border-indigo-200">
                   <CardHeader>
