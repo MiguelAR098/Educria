@@ -242,3 +242,27 @@ export interface MapaDaTurma {
   maisFrageis: AssuntoDaTurma[];
 }
 
+export interface AlertaDaTurma {
+  titulo: string;
+  texto: string;
+}
+
+export interface PontoDaTendencia {
+  dia: string;
+  nivelMedio: number | null;
+}
+
+export interface IndicadoresDoAluno {
+  alunoId: number;
+  evolucao30d: number | null;
+  revisoesVencidas: number;
+  erraMaisEm: string[];
+}
+
+export interface PanoramaDaTurma {
+  turmaId: number;
+  alertas: AlertaDaTurma[];
+  tendencia: PontoDaTendencia[];
+  alunos: IndicadoresDoAluno[];
+}
+

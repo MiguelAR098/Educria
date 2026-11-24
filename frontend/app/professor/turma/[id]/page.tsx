@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { api } from "@/lib/api";
-import { AlunoDaTurma, TurmaComAlunos } from "@/lib/types";
+import { AlunoDaTurma, PanoramaDaTurma, TurmaComAlunos } from "@/lib/types";
 import { SITUACAO } from "@/lib/situacao";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
@@ -13,7 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertTriangle, ArrowLeft, BarChart3, Grid3x3, Trophy, Users } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BarChart3, BellRing, Grid3x3, TrendingUp, Trophy, Users } from "lucide-react";
+
+const variacao = new Intl.NumberFormat("pt-BR", {
+  signDisplay: "exceptZero",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+const decimal = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+function diaCurto(dia: string): string {
+  return new Date(`${dia}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
 
 function motivo(aluno: AlunoDaTurma): string {
   const total = aluno.acertos + aluno.erros;
@@ -47,6 +58,14 @@ export default function TurmaDoProfessorPage() {
     },
     retry: false,
   });
+
+  const panorama = useQuery({
+    queryKey: ["professor", "turma", id, "panorama"],
+    queryFn: async () => (await api.get<PanoramaDaTurma>(`/api/professor/turmas/${id}/panorama`)).data,
+    retry: false,
+  });
+  const indicadores = new Map((panorama.data?.alunos ?? []).map((i) => [i.alunoId, i]));
+  const tendencia = (panorama.data?.tendencia ?? []).filter((p) => p.nivelMedio !== null);
 
   const proibido = (turma.error as AxiosError | null)?.response?.status === 403;
   const alunos = [...(turma.data?.alunos ?? [])].sort(
@@ -130,6 +149,32 @@ export default function TurmaDoProfessorPage() {
                 <Resumo titulo="Em atenção" valor={turma.data.resumo.atencao} destaque="text-amber-600" />
               </div>
 
+              {panorama.data && (
+                <Card className="shadow-md border-indigo-200 bg-indigo-50/30">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <BellRing className="h-5 w-5 text-indigo-600" />
+                      O que pede atenção agora
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    {panorama.data.alertas.length === 0 ? (
+                      <p className="text-slate-600">
+                        Nada pede atenção imediata na turma. Isso não quer dizer que todos estão bem: veja a
+                        situação de cada aluno abaixo.
+                      </p>
+                    ) : (
+                      panorama.data.alertas.map((alerta) => (
+                        <div key={alerta.titulo + alerta.texto}>
+                          <p className="font-semibold text-slate-900">{alerta.titulo}</p>
+                          <p className="text-slate-700">{alerta.texto}</p>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               {precisamAtencao.length > 0 && (
                 <Card className="shadow-md border-amber-200 bg-amber-50/40">
                   <CardHeader>
@@ -166,7 +211,7 @@ export default function TurmaDoProfessorPage() {
                     </p>
                   ) : (
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[640px] text-sm">
+                      <table className="w-full min-w-[900px] text-sm">
                         <thead>
                           <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                             <th className="py-2 pr-4 font-semibold">Aluno</th>
@@ -174,6 +219,9 @@ export default function TurmaDoProfessorPage() {
                             <th className="py-2 pr-4 font-semibold">Acertos / erros</th>
                             <th className="py-2 pr-4 font-semibold">Taxa</th>
                             <th className="py-2 pr-4 font-semibold">Situação</th>
+                            <th className="py-2 pr-4 font-semibold">Evolução 30 dias</th>
+                            <th className="py-2 pr-4 font-semibold">Revisões vencidas</th>
+                            <th className="py-2 pr-4 font-semibold">Erra mais em</th>
                             <th className="py-2 font-semibold">Última atividade</th>
                           </tr>
                         </thead>
@@ -208,6 +256,17 @@ export default function TurmaDoProfessorPage() {
                                   {SITUACAO[aluno.situacao].rotulo}
                                 </Badge>
                               </td>
+                              <td className="py-3 pr-4 tabular-nums text-slate-700">
+                                {indicadores.get(aluno.id)?.evolucao30d == null
+                                  ? "—"
+                                  : variacao.format(indicadores.get(aluno.id)!.evolucao30d!)}
+                              </td>
+                              <td className="py-3 pr-4 tabular-nums text-slate-700">
+                                {indicadores.get(aluno.id)?.revisoesVencidas ?? "—"}
+                              </td>
+                              <td className="py-3 pr-4 text-slate-700 first-letter:uppercase">
+                                {(indicadores.get(aluno.id)?.erraMaisEm ?? []).join(", ") || "—"}
+                              </td>
                               <td className="py-3 text-slate-600">
                                 {ultimaAtividade(aluno.ultimaAtividade)}
                               </td>
@@ -219,6 +278,53 @@ export default function TurmaDoProfessorPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {panorama.data && (
+                <Card className="shadow-md border-slate-200/80">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <TrendingUp className="h-5 w-5 text-indigo-600" />
+                      Tendência do nível médio da turma
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    {tendencia.length === 0 ? (
+                      <p className="text-slate-500">Ainda não há respostas suficientes para mostrar a tendência.</p>
+                    ) : (
+                      <>
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[420px]">
+                            <thead>
+                              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+                                <th className="py-2 pr-4 text-left font-semibold">Semana de</th>
+                                {panorama.data.tendencia.map((ponto) => (
+                                  <th key={ponto.dia} className="py-2 pr-4 text-right font-semibold">
+                                    {diaCurto(ponto.dia)}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td className="py-3 pr-4 font-semibold text-slate-800">Nível médio</td>
+                                {panorama.data.tendencia.map((ponto) => (
+                                  <td key={ponto.dia} className="py-3 pr-4 text-right font-bold tabular-nums text-slate-900">
+                                    {ponto.nivelMedio === null ? "—" : decimal.format(ponto.nivelMedio)}
+                                  </td>
+                                ))}
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <p className="text-slate-500">
+                          Média dos níveis dos alunos nos assuntos que já praticaram, ao fim de cada semana. Um
+                          traço quer dizer que ninguém tinha praticado ainda.
+                        </p>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </main>
