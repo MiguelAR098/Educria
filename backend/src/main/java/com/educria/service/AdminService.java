@@ -55,4 +55,11 @@ public class AdminService {
         aluno.setTurma(turma);
         alunoRepository.save(aluno);
     }
+
+    @Transactional
+    public void desvincularAlunoTurma(Long turmaId, Long alunoId) {
+        if (alunoRepository.desvincularDaTurma(alunoId, turmaId) == 0) {
+            throw new ApiException("Vínculo do aluno com a turma não encontrado", HttpStatus.NOT_FOUND);
+        }
+    }
 }

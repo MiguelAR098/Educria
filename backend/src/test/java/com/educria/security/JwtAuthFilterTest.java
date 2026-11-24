@@ -1,6 +1,6 @@
 package com.educria.security;
 
-import com.educria.domain.entity.Usuario;
+import com.educria.domain.entity.Aluno;
 import com.educria.domain.enums.Perfil;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -109,7 +109,7 @@ class JwtAuthFilterTest {
     }
 
     private String emitirToken() {
-        return tokens.generateToken(Usuario.builder().email(EMAIL).nome("Aluno").id(1L).perfil(Perfil.ALUNO).build());
+        return tokens.generateToken(Aluno.builder().email(EMAIL).nome("Aluno").id(1L).perfil(Perfil.ALUNO).build());
     }
 
     private void filtrar(String token, UserDetailsService usuarios) throws Exception {

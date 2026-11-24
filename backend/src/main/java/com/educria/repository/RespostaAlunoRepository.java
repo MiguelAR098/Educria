@@ -27,12 +27,14 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
         int getUltimoPasso();
     }
 
-    @Query(value = """
-            select questao_id as questao, max(passo) as "ultimoPasso"
-            from respostas_aluno where sessao_id = :sessao and aluno_id = :aluno
-            group by questao_id having bool_or(reaprender) and not bool_or(correta)
-            order by max(passo)
-            """, nativeQuery = true)
+    @Query("""
+            select r.questao.id as questao, max(r.passo) as ultimoPasso
+            from RespostaAluno r where r.sessao.id = :sessao and r.aluno.id = :aluno
+            group by r.questao.id
+            having max(case when r.reaprender = true then 1 else 0 end) = 1
+               and max(case when r.correta = true then 1 else 0 end) = 0
+            order by max(r.passo)
+            """)
     List<Pendencia> fila(@Param("sessao") Long sessao, @Param("aluno") Long aluno);
 
     List<RespostaAluno> findByAlunoId(Long alunoId);

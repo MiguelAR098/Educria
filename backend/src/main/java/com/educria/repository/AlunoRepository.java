@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
@@ -27,6 +28,10 @@ public interface AlunoRepository extends JpaRepository<Aluno, Long> {
     long countByTurmaId(Long turmaId);
 
     Optional<Aluno> findByIdAndTurmaId(Long id, Long turmaId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = "update dbo.alunos set turma_id = null where usuario_id = :alunoId and turma_id = :turmaId", nativeQuery = true)
+    int desvincularDaTurma(@Param("alunoId") Long alunoId, @Param("turmaId") Long turmaId);
 
     @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.desempenhoAdaptativo WHERE a.turma.id = :turmaId ORDER BY a.nome")
     List<Aluno> findByTurmaIdComDesempenho(@Param("turmaId") Long turmaId);

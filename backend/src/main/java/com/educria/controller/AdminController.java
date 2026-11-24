@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
@@ -16,9 +18,10 @@ public class AdminController {
     private final AdminService adminService;
 
     @PostMapping("/turmas")
-    public ResponseEntity<Turma> criarTurma(@RequestBody CriarTurmaRequest request) {
+    public ResponseEntity<TurmaCriada> criarTurma(@RequestBody CriarTurmaRequest request) {
         Turma turma = adminService.criarTurma(request.getNome(), request.getCodigo(), request.getAnoLetivo());
-        return ResponseEntity.status(HttpStatus.CREATED).body(turma);
+        var resposta = new TurmaCriada(turma.getId(), turma.getNome(), turma.getCodigo(), turma.getAnoLetivo(), turma.getCriadoEm());
+        return ResponseEntity.status(HttpStatus.CREATED).body(resposta);
     }
 
     @PostMapping("/turmas/{turmaId}/pontos")
@@ -32,6 +35,14 @@ public class AdminController {
         adminService.vincularAlunoTurma(turmaId, alunoId);
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/turmas/{turmaId}/alunos/{alunoId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void desvincularAluno(@PathVariable Long turmaId, @PathVariable Long alunoId) {
+        adminService.desvincularAlunoTurma(turmaId, alunoId);
+    }
+
+    public record TurmaCriada(Long id, String nome, String codigo, Integer anoLetivo, LocalDateTime criadoEm) {}
 
     @Data
     public static class CriarTurmaRequest {

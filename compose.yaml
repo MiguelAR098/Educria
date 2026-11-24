@@ -1,18 +1,18 @@
 services:
   db:
-    image: postgres:16
+    image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
-      POSTGRES_DB: educria
-      POSTGRES_USER: educria
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Execute bash scripts/iniciar.sh}
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Execute bash scripts/iniciar.sh}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:1433:1433"
     volumes:
-      - dados:/var/lib/postgresql/data
+      - mssql_dados:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U educria -d educria"]
+      test: ["CMD-SHELL", 'SQLCMDPASSWORD="$$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -S localhost -C -U sa -b -Q "SELECT 1"']
       interval: 3s
       timeout: 3s
       retries: 30
 volumes:
-  dados:
+  mssql_dados:

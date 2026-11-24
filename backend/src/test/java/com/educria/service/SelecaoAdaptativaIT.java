@@ -2,10 +2,12 @@ package com.educria.service;
 
 import com.educria.repository.AssuntoRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -17,19 +19,21 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
-class SelecaoAdaptativaIT {
+@EnabledIfEnvironmentVariable(named = IntegracaoSqlServer.VARIAVEL_URL, matches = ".+")
+class SelecaoAdaptativaIT extends IntegracaoSqlServer {
 
     @Autowired private SelecaoAdaptativaService servico;
     @Autowired private AssuntoRepository assuntos;
     @Autowired private JdbcTemplate banco;
+    @Autowired private PasswordEncoder encoder;
 
     @Test
     void consultaRealLimitaSelecaoAoAssuntoEAsAtividadesAtivas() {
-        long materia = id("insert into materias(nome) values (?) returning id", UUID.randomUUID().toString());
-        long assunto = id("insert into assuntos(materia_id, nome) values (?, 'Frações') returning id", materia);
-        long outro = id("insert into assuntos(materia_id, nome) values (?, 'Equações') returning id", materia);
-        long ativa = id("insert into atividades(titulo, ativa) values ('Teste', true) returning id");
-        long inativa = id("insert into atividades(titulo, ativa) values ('Teste', false) returning id");
+        long materia = id("insert into materias(nome) output inserted.id values (?)", UUID.randomUUID().toString());
+        long assunto = id("insert into assuntos(materia_id, nome) output inserted.id values (?, N'Frações')", materia);
+        long outro = id("insert into assuntos(materia_id, nome) output inserted.id values (?, N'Equações')", materia);
+        long ativa = id("insert into atividades(titulo, ativa) output inserted.id values ('Teste', 1)");
+        long inativa = id("insert into atividades(titulo, ativa) output inserted.id values ('Teste', 0)");
         long elegivel = inserirQuestao(ativa, assunto, 3);
         long foraDoAssunto = inserirQuestao(ativa, outro, 10);
         long desativada = inserirQuestao(inativa, assunto, 10);
@@ -49,13 +53,13 @@ class SelecaoAdaptativaIT {
 
     @Test
     void selecaoERecomendacaoExigemAlternativaCorretaDisponivel() {
-        long materia = id("insert into materias(nome) values (?) returning id", UUID.randomUUID().toString());
-        long soInvalidas = id("insert into assuntos(materia_id, nome) values (?, 'Só inválidas') returning id", materia);
-        long misto = id("insert into assuntos(materia_id, nome) values (?, 'Com questão válida') returning id", materia);
-        long atividade = id("insert into atividades(titulo) values ('Teste') returning id");
+        long materia = id("insert into materias(nome) output inserted.id values (?)", UUID.randomUUID().toString());
+        long soInvalidas = id("insert into assuntos(materia_id, nome) output inserted.id values (?, N'Só inválidas')", materia);
+        long misto = id("insert into assuntos(materia_id, nome) output inserted.id values (?, N'Com questão válida')", materia);
+        long atividade = id("insert into atividades(titulo) output inserted.id values ('Teste')");
         long aluno = id("""
-                insert into usuarios(nome, email, senha, perfil) values ('Aluno', ?, 'teste', 'ALUNO') returning id
-                """, UUID.randomUUID() + "@example.test");
+                insert into usuarios(nome, email, senha, perfil) output inserted.id values ('Aluno', ?, ?, 'ALUNO')
+                """, UUID.randomUUID() + "@example.test", encoder.encode(segredoTemporario()));
         banco.update("insert into alunos(usuario_id) values (?)", aluno);
         banco.update("update desempenho_por_assunto set nivel_atual = 10 where aluno_id = ? and assunto_id not in (?, ?)",
                 aluno, soInvalidas, misto);
@@ -84,8 +88,7 @@ class SelecaoAdaptativaIT {
         return id("""
                 insert into questoes (atividade_id, assunto_id, dificuldade, enunciado, alternativa_a,
                     alternativa_b, alternativa_c, alternativa_d, resposta_correta, explicacao)
-                values (?, ?, ?, 'Quanto é 1 + 1?', '1', ?, '3', '4', ?, 'A resposta é 2.')
-                returning id
+                output inserted.id values (?, ?, ?, N'Quanto é 1 + 1?', '1', ?, '3', '4', ?, N'A resposta é 2.')
                 """, atividade, assunto, dificuldade, alternativaB, gabarito);
     }
 

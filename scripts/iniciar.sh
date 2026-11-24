@@ -10,7 +10,7 @@ if [[ ! -e .env ]]; then
     umask 077
     temporario=$(mktemp .env.XXXXXX)
     trap 'rm -f "$temporario"' EXIT
-    printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -hex 24)" > "$temporario"
+    printf 'MSSQL_SA_PASSWORD=Aa1%s\n' "$(openssl rand -hex 24)" > "$temporario"
     printf 'EDUCRIA_JWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> "$temporario"
     mv "$temporario" .env
   )
@@ -18,11 +18,24 @@ fi
 set -a
 source ./.env
 set +a
-: "${POSTGRES_PASSWORD:?Preencha POSTGRES_PASSWORD no .env}"
 : "${EDUCRIA_JWT_SECRET:?Preencha EDUCRIA_JWT_SECRET no .env}"
+if [[ -z "${MSSQL_SA_PASSWORD:-}" ]]; then
+  MSSQL_SA_PASSWORD="Aa1$(openssl rand -hex 24)"
+  printf '\nMSSQL_SA_PASSWORD=%s\n' "$MSSQL_SA_PASSWORD" >> .env
+fi
+export MSSQL_SA_PASSWORD
+unset SPRING_DATASOURCE_URL SPRING_DATASOURCE_USERNAME SPRING_DATASOURCE_PASSWORD
+unset SPRING_FLYWAY_URL SPRING_FLYWAY_USER SPRING_FLYWAY_PASSWORD
+export EDUCRIA_SQLSERVER_URL='jdbc:sqlserver://127.0.0.1:1433;databaseName=educria;encrypt=true;trustServerCertificate=true'
+export EDUCRIA_SQLSERVER_USER=sa
+export EDUCRIA_SQLSERVER_PASSWORD="$MSSQL_SA_PASSWORD"
 
-echo 'Iniciando PostgreSQL 16…'
+echo 'Iniciando SQL Server de desenvolvimento…'
 docker compose up -d --wait --wait-timeout 120 db
+docker compose exec -T db sh -c 'export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"; exec /opt/mssql-tools18/bin/sqlcmd -S localhost -C -U sa -d master -b' <<'SQL'
+IF DB_ID(N'educria') IS NULL EXEC(N'CREATE DATABASE [educria] COLLATE Latin1_General_100_CS_AS_SC');
+GO
+SQL
 echo 'Compilando o backend e executando os testes…'
 mvn -B -f backend/pom.xml clean package
 echo 'Preparando o frontend…'

@@ -10,7 +10,7 @@
   "portsAttributes": {
     "3000": { "label": "EDUCRIA", "onAutoForward": "notify", "visibility": "private" },
     "8080": { "onAutoForward": "ignore" },
-    "5432": { "onAutoForward": "ignore" }
+    "1433": { "onAutoForward": "ignore" }
   },
   "otherPortsAttributes": { "onAutoForward": "ignore" }
 }

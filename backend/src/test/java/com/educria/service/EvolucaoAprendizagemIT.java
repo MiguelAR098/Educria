@@ -1,13 +1,17 @@
 package com.educria.service;
 
+import com.educria.domain.entity.Admin;
+import com.educria.domain.entity.Aluno;
 import com.educria.domain.entity.Usuario;
 import com.educria.domain.enums.Perfil;
 import com.educria.dto.RelatorioEvolucao;
 import com.educria.dto.RelatorioEvolucao.Dia;
 import com.educria.dto.ResultadoSessao;
+import com.educria.repository.UsuarioRepository;
 import com.educria.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +21,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +44,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 @Import(EvolucaoAprendizagemIT.RelogioDeTeste.class)
-class EvolucaoAprendizagemIT {
+@EnabledIfEnvironmentVariable(named = IntegracaoSqlServer.VARIAVEL_URL, matches = ".+")
+class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     private static final String ROTA = "/api/aluno/evolucao";
     private static final LocalDate INICIO = LocalDate.of(2026, 12, 2);
     private static final LocalDate HOJE = LocalDate.of(2026, 12, 31);
@@ -54,6 +60,8 @@ class EvolucaoAprendizagemIT {
     }
 
     @Autowired private MockMvc mvc;
+    @Autowired private PasswordEncoder encoder;
+    @Autowired private UsuarioRepository usuarios;
     @Autowired private ObjectMapper json;
     @Autowired private JdbcTemplate db;
     @Autowired private JwtService jwt;
@@ -216,7 +224,8 @@ class EvolucaoAprendizagemIT {
     void exigeAutenticacaoEPerfilAluno() throws Exception {
         int anonimo = mvc.perform(get(ROTA)).andReturn().getResponse().getStatus();
         assertTrue(anonimo == 401 || anonimo == 403);
-        mvc.perform(autenticar(get(ROTA), usuario(Perfil.ADMIN))).andExpect(status().isForbidden());
+        mvc.perform(autenticar(get(ROTA), usuario(Admin.builder().perfil(Perfil.ADMIN))))
+                .andExpect(status().isForbidden());
     }
 
     private RelatorioEvolucao ler(MockHttpServletRequestBuilder pedido, Identidade titular) throws Exception {
@@ -241,31 +250,26 @@ class EvolucaoAprendizagemIT {
     }
 
     private Identidade aluno() {
-        var aluno = usuario(Perfil.ALUNO);
-        db.update("insert into alunos(usuario_id) values (?)", aluno.id());
-        return aluno;
+        return usuario(Aluno.builder().perfil(Perfil.ALUNO));
     }
 
-    private Identidade usuario(Perfil perfil) {
-        String email = UUID.randomUUID() + "@example.test";
-        long id = id("""
-                insert into usuarios(nome, email, senha, perfil) values ('Teste', ?, 'teste', ?) returning id
-                """, email, perfil.name());
-        String token = jwt.generateToken(Usuario.builder().id(id).email(email).nome("Teste").perfil(perfil).build());
-        return new Identidade(id, token);
+    private Identidade usuario(Usuario.UsuarioBuilder<?, ?> builder) {
+        Usuario conta = usuarios.saveAndFlush(builder.nome("Teste").email(UUID.randomUUID() + "@example.test")
+                .senha(encoder.encode(segredoTemporario())).build());
+        return new Identidade(conta.getId(), jwt.generateToken(conta));
     }
 
     private long assunto(String nome) {
-        long materia = id("insert into materias(nome) values (?) returning id", UUID.randomUUID().toString());
-        return id("insert into assuntos(materia_id, nome) values (?, ?) returning id", materia, nome);
+        long materia = id("insert into materias(nome) output inserted.id values (?)", UUID.randomUUID().toString());
+        return id("insert into assuntos(materia_id, nome) output inserted.id values (?, ?)", materia, nome);
     }
 
     private long questao(Long assunto) {
-        long atividade = id("insert into atividades(titulo) values ('Teste') returning id");
+        long atividade = id("insert into atividades(titulo) output inserted.id values ('Teste')");
         return id("""
                 insert into questoes(atividade_id, assunto_id, dificuldade, enunciado, alternativa_a, alternativa_b,
                     resposta_correta)
-                values (?, ?, 1, 'Questão', 'Certa', 'Errada', 'A') returning id
+                output inserted.id values (?, ?, 1, N'Questão', 'Certa', 'Errada', 'A')
                 """, atividade, assunto);
     }
 
@@ -273,7 +277,7 @@ class EvolucaoAprendizagemIT {
         OffsetDateTime instante = OffsetDateTime.parse(inicio);
         return id("""
                 insert into sessoes_estudo(aluno_id, assunto_id, situacao, iniciada_em, atualizada_em)
-                values (?, ?, 'ENCERRADA', ?, ?) returning id
+                output inserted.id values (?, ?, 'ENCERRADA', ?, ?)
                 """, titular.id(), assunto, instante, instante);
     }
 
