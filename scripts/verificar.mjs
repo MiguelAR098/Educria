@@ -28,8 +28,8 @@ function consultar(sql) {
 }
 
 assert.ok(Number(consultar("SELECT SERVERPROPERTY('ProductMajorVersion')")) >= 15);
-assert.equal(consultar("SELECT STRING_AGG(version, ',') WITHIN GROUP (ORDER BY installed_rank) FROM dbo.flyway_schema_history WHERE success=1 AND version IN ('1','2')"), "1,2");
-console.log("OK · SQL Server e Flyway V1 e V2");
+assert.equal(consultar("SELECT STRING_AGG(version, ',') WITHIN GROUP (ORDER BY installed_rank) FROM dbo.flyway_schema_history WHERE success=1 AND version IN ('1','2','3','4')"), "1,2,3,4");
+console.log("OK · SQL Server e Flyway V1 a V4");
 
 const preflight = await fetch(base + "/api/auth/register", {
   method: "OPTIONS",
@@ -61,7 +61,7 @@ const headers = { Authorization: "Bearer " + token, Origin: origem };
 const desempenho = await fetch(base + "/api/aluno/desempenho", { headers });
 assert.equal(desempenho.status, 200);
 assert.deepEqual(await desempenho.json(), {
-  nivelAtual: 1, errosConsecutivos: 0, totalAcertos: 0, totalErros: 0, nivelMaximo: false,
+  nivelAtual: 1, errosConsecutivos: 0, totalAcertos: 0, totalErros: 0, nivelMaximo: false, pontosIndividuais: 0,
 });
 const pontos = await fetch(base + "/api/aluno/turma/pontos", { headers });
 assert.equal(pontos.status, 200);
@@ -80,12 +80,14 @@ assert.equal(catalogo.status, 200);
 const materias = await catalogo.json();
 const matematica = materias.find((materia) => materia.nome === "Matemática");
 assert.equal(matematica?.totalAssuntos, 8);
+assert.ok(materias.every((materia) => materia.pontosIndividuais === 0));
 const rotaAssuntos = base + `/api/aluno/materias/${matematica.id}/assuntos`;
 const respostaAssuntos = await fetch(rotaAssuntos, { headers });
 assert.equal(respostaAssuntos.status, 200);
 const assuntos = await respostaAssuntos.json();
 assert.equal(new Set(assuntos.map((assunto) => assunto.id)).size, 8);
 assert.ok(assuntos.every((assunto) => assunto.nivelAtual === 1));
+assert.ok(assuntos.every((assunto) => assunto.pontosIndividuais === 0));
 for (const rota of [base + "/api/aluno/materias", rotaAssuntos]) {
   assert.ok([401, 403].includes((await fetch(rota)).status));
 }

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { api } from "./api";
 import { useAuthStore } from "./auth-store";
+import type { AssuntoDoAluno, MateriaDoAluno } from "./types";
 
 export const rotaSessoes = "/api/aluno/sessoes";
 export const limiteQuestoes = 10;
@@ -36,6 +37,7 @@ export interface FeedbackResposta {
   errosDaQuestao?: number;
   alternativaCorreta?: Alternativa;
   textoAlternativaCorreta?: string;
+  pontosConcedidos?: number | null;
 }
 
 export interface EstadoSessao {
@@ -45,12 +47,7 @@ export interface EstadoSessao {
   feedback?: FeedbackResposta;
   sessao: ResumoSessao;
   questaoAtual: QuestaoAtual | null;
-}
-
-interface Assunto {
-  id: number;
-  nome: string;
-  nivelAtual: number;
+  pontosSessao: number;
 }
 
 export function useChaveAluno() {
@@ -62,9 +59,9 @@ export function useAssuntosDeEstudo() {
   return useQuery({
     queryKey: ["assuntos-de-estudo", aluno],
     queryFn: async () => {
-      const { data } = await api.get<{ id: number; nome: string; totalAssuntos: number }[]>("/api/aluno/materias");
+      const { data } = await api.get<MateriaDoAluno[]>("/api/aluno/materias");
       const grupos = await Promise.all(data.filter((m) => m.totalAssuntos > 0).map(async (materia) => {
-        const { data: assuntos } = await api.get<Assunto[]>(`/api/aluno/materias/${materia.id}/assuntos`);
+        const { data: assuntos } = await api.get<AssuntoDoAluno[]>(`/api/aluno/materias/${materia.id}/assuntos`);
         return assuntos.map((a) => ({ ...a, materia: materia.nome }));
       }));
       return grupos.flat();

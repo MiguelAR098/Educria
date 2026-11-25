@@ -40,6 +40,21 @@ export interface DesempenhoAluno {
   nivelMaximo?: boolean;
   totalAcertos: number;
   totalErros: number;
+  pontosIndividuais: number;
+}
+
+export interface MateriaDoAluno {
+  id: number;
+  nome: string;
+  totalAssuntos: number;
+  pontosIndividuais: number;
+}
+
+export interface AssuntoDoAluno {
+  id: number;
+  nome: string;
+  nivelAtual: number;
+  pontosIndividuais: number;
 }
 
 export interface PontosTurma {

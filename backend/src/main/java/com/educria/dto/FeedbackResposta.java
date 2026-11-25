@@ -8,7 +8,8 @@ public record FeedbackResposta(String alternativa, boolean correta, String expli
         TipoOrientacao tipoOrientacao,
         @JsonInclude(JsonInclude.Include.NON_NULL) Long errosDaQuestao,
         @JsonInclude(JsonInclude.Include.NON_NULL) String alternativaCorreta,
-        @JsonInclude(JsonInclude.Include.NON_NULL) String textoAlternativaCorreta) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) String textoAlternativaCorreta,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Integer pontosConcedidos) {
 
     public enum TipoOrientacao {
         EXPLICACAO, DICA_INICIAL, DICA_APRIMORADA, RESOLUCAO

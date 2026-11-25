@@ -15,6 +15,8 @@ export interface Indicadores {
   erros: number;
   nivelAntes: number | null;
   nivelDepois: number | null;
+  pontosIndividuais: number | null;
+  pontuacaoCompleta: boolean;
 }
 
 export interface Historico {
@@ -27,6 +29,8 @@ export interface Resultado {
   anterior: Indicadores | null;
   questoes: { numero: number; passo: number | null; enunciado: string; alternativa: string | null; correta: boolean | null }[];
   revisoes: { questaoId: number; enunciado: string; proximaRevisao: string }[];
+  pontosIndividuaisNoAssunto: number;
+  pontosIndividuaisNaMateria: number;
 }
 
 export const situacoes = { ATIVA: "Em andamento", INTERROMPIDA: "Interrompida", ENCERRADA: "Encerrada" };

@@ -14,7 +14,7 @@ O Dev Container configura Java 21, Maven, Node 22 e Docker-in-Docker. O Compose 
 
 ## Subir a demonstração em um Codespace limpo
 
-Para a apresentação, use o perfil `dev`. Em um Codespace limpo, o iniciador cria a base `educria` dentro do contêiner de desenvolvimento e o Flyway aplica V1 e V2. O callback acrescenta as 80 questões de Matemática.
+Para a apresentação, use o perfil `dev`. Em um Codespace limpo, o iniciador cria a base `educria` dentro do contêiner de desenvolvimento e o Flyway aplica as migrations de V1 a V4. O callback acrescenta as 80 questões de Matemática.
 
 ```bash
 SPRING_PROFILES_ACTIVE=dev bash scripts/iniciar.sh

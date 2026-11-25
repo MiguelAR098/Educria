@@ -120,7 +120,7 @@ function Painel() {
           </CardContent>
         </Card>
       </div>
-      <CatalogoMaterias />
+      <CatalogoMaterias pontosIndividuais={nivel.data?.pontosIndividuais} />
     </main>
   );
 }

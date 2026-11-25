@@ -61,7 +61,7 @@ public class SessaoEstudoService {
 
         var primeira = selecionar(aluno, assunto.getId(), Set.of(), 0, hoje).orElseThrow(SessaoEstudoService::semQuestoes);
         var sessao = sessoes.save(new SessaoEstudo(aluno, assunto, primeira.questao().id(), primeira.revisao()));
-        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao(), null, 1, false, 0), true);
+        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao(), null, 1, false, 0, 0), true);
     }
 
     @Transactional(readOnly = true)
@@ -138,6 +138,9 @@ public class SessaoEstudoService {
             throw new ApiException("Alternativa indisponível", HttpStatus.BAD_REQUEST);
         }
         boolean correta = questao.isRespostaCorreta(alternativa);
+        int pontos = correta ? PontuacaoIndividual.acerto(questao.getDificuldade(),
+                respostas.findFirstByAlunoIdAndQuestaoIdOrderByRespondidoEmDescIdDesc(aluno.getId(), questaoId)
+                        .map(RespostaAlunoRepository.UltimaTentativa::getCorreta)) : 0;
         Assunto assunto = sessao.getAssunto();
         var desempenho = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assunto.getId())
                 .orElseGet(() -> new DesempenhoPorAssunto(aluno, assunto));
@@ -149,7 +152,7 @@ public class SessaoEstudoService {
         int nivelAtual = desempenho.getNivelAtual();
 
         var salva = respostas.save(RespostaAluno.builder().passo(sessao.getPasso()).reaprender(!correta).aluno(aluno).sessao(sessao).questao(questao)
-                .respostaDada(alternativa).correta(correta)
+                .respostaDada(alternativa).correta(correta).pontosIndividuais(pontos)
                 .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).build());
         agenda.registrar(aluno, questao, correta);
         return feedback(salva, id);
@@ -174,7 +177,8 @@ public class SessaoEstudoService {
                 respostas.findBySessaoIdAndPassoAndAlunoId(resumo.id(), sessao.getPasso(), alunoId)
                         .filter(resposta -> resposta.getQuestao().getId().equals(questaoId))
                         .map(resposta -> feedback(resposta, resumo.id())).orElse(null),
-                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id(), alunoId).size());
+                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id(), alunoId).size(),
+                respostas.pontosDaSessao(resumo.id(), alunoId));
     }
 
     private FeedbackResposta feedback(RespostaAluno resposta, Long sessaoId) {

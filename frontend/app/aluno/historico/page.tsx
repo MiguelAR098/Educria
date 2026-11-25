@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useHistorico, inicio, situacoes } from "@/lib/historico";
+import { formatarPontos } from "@/lib/pontuacao";
 
 export default function HistoricoPage() {
   const consulta = useHistorico();
@@ -31,6 +32,7 @@ export default function HistoricoPage() {
             <p className="text-sm text-slate-600">{inicio(s)} · {situacoes[s.situacao]}</p>
             <p className="text-sm">{s.apresentadas} questões apresentadas · {s.tentativas} tentativas</p>
             <p className="text-sm">Acertos: {s.acertos} · Tentativas incorretas: {s.tentativasIncorretas} · Erros contabilizados: {s.erros}</p>
+            <p className="text-sm font-medium text-indigo-700">{formatarPontos(s.pontosIndividuais)}</p>
           </div><ArrowRight size={18} className="shrink-0 text-indigo-600" aria-hidden="true" />
         </Link></li>))}</ul>}
       {consulta.hasNextPage && !consulta.isFetchNextPageError &&

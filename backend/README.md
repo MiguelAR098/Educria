@@ -118,8 +118,9 @@ O dashboard em `/aluno` consulta duas rotas privadas com o JWT de perfil ALUNO:
 
 | GET | Resposta |
 |---|---|
-| `/api/aluno/materias` | Lista de matérias com `id`, `nome` e `totalAssuntos`. |
-| `/api/aluno/materias/{materiaId}/assuntos` | Lista de assuntos com `id`, `nome` e `nivelAtual` do aluno autenticado. Uma matéria sem assuntos retorna uma lista vazia. Um ID de matéria inexistente retorna 404. |
+| `/api/aluno/materias` | Lista de matérias com `id`, `nome`, `totalAssuntos` e `pontosIndividuais` do aluno autenticado. |
+| `/api/aluno/materias/{materiaId}/assuntos` | Lista de assuntos com `id`, `nome`, `nivelAtual` e `pontosIndividuais` do aluno autenticado. Uma matéria sem assuntos retorna uma lista vazia. Um ID de matéria inexistente retorna 404. |
+| `/api/aluno/desempenho` | Indicadores do aluno autenticado, incluindo o total geral em `pontosIndividuais`. |
 
 Matemática mostra os oito níveis individuais, inclusive em uma base sem as questões de demonstração. O catálogo inicial da migration V2 cadastra também Português e Ciências. Matérias sem assuntos aparecem como indisponíveis. Para verificar as rotas e a exigência de autenticação no ambiente de desenvolvimento do Codespaces, rode `node scripts/verificar.mjs` na raiz.
 
@@ -145,7 +146,7 @@ Rotas sob `/api/aluno/sessoes` usam JWT de perfil ALUNO. O servidor obtém o tit
 |---|---|
 | POST na coleção | `{"assuntoId":1}` escolhe assunto. `{}` solicita recomendação pelo menor nível pessoal entre assuntos com questões ativas, com desempate pelo menor ID. Retorna 201 com a primeira questão. |
 | GET na coleção | Lista resumos do titular, mais recentes primeiro. |
-| GET `/{id}` | Retorna `sessao` e `questaoAtual`, com as alternativas A–D. |
+| GET `/{id}` | Retorna `sessao`, `pontosSessao` e `questaoAtual`, com as alternativas A–D. |
 | PUT `/{id}/questoes/{posicao}` | Solicita o próximo passo. A sessão admite até dez questões distintas e passos adicionais de reaprendizagem. |
 | PUT `/{id}/interromper` | Pausa e conserva a posição. |
 | PUT `/{id}/retomar` | Reativa a sessão na mesma questão. |
@@ -169,13 +170,21 @@ O primeiro envio válido atualiza a resposta e o diagnóstico do aluno no assunt
 
 O feedback inclui `nivelAnterior` e `nivelAtual` gravados com a resposta. Um reenvio devolve os níveis daquele momento. O schema aceita respostas legadas com níveis históricos nulos.
 
-**Decisões pendentes da equipe.** O PDF de requisitos estabelece a escala e a proteção do primeiro erro. Exigir dois acertos para subir, penalizar respostas rápidas e definir uma fórmula de pontos privados são propostas do protótipo que aguardam aprovação. Nenhuma delas participa do cálculo atual.
+**Decisões pendentes da equipe.** O PDF de requisitos estabelece a escala e a proteção do primeiro erro. O protótipo propõe exigir dois acertos para subir e penalizar respostas rápidas. As duas propostas continuam pendentes.
+
+## Pontuação individual de aprendizagem
+
+A dificuldade vigente da questão no banco define a base de 10 pontos por nível de dificuldade. Um acerto inédito concede 100% da base. Um acerto após a última resposta incorreta do mesmo aluno à questão concede 60%. Um acerto após a última resposta correta concede 30%. Uma resposta incorreta concede zero. Por exemplo, na dificuldade 5 os valores são 50, 30, 15 e zero, respectivamente. A classificação inclui tentativas de outras sessões e usa o histórico, inclusive quando um erro removeu a revisão agendada. O tempo de resposta fica fora da fórmula. [Fórmula do protótipo](https://github.com/i-barbosa/EduCria/blob/98abb3a1b6f90c62795a5590fdf76ef940efa681/index.html#L1156-L1160)
+
+A migration V3 acrescenta `respostas_aluno.pontos_individuais` e a V4 cria o índice filtrado para os totais. A mesma transação que grava a resposta grava os pontos. Reenvios retornam o valor daquela tentativa. Os totais somam as respostas do titular por sessão, pelo assunto da sessão e pela matéria desse assunto. A pontuação coletiva possui seu próprio saldo. Editar a questão depois da resposta preserva os pontos já gravados e o assunto histórico.
+
+As respostas anteriores à V3 conservam `NULL` e permanecem no histórico usado para classificar novas tentativas. Um erro novo grava zero. Os totais do catálogo começam em zero e só somam pontos registrados após a implantação. O histórico e o resultado exibem **Pontuação não registrada** nas sessões sem dados. A comparação só inclui pontos quando as duas sessões têm pontuação registrada em todas as suas respostas, conforme `pontuacaoCompleta`. O estado da atividade informa `pontosSessao`, e o feedback inclui `pontosConcedidos` quando há pontuação registrada.
 
 ## Revisões por questão
 
 Cada linha de `repeticao_espacada` identifica exatamente uma atividade legada ou uma questão, com unicidade por aluno e alvo. O assunto vem da própria questão. A agenda por questão começa com as novas respostas. A sessão registra quantas revisões já apresentou para conservar a cota de três ao pausar e retomar.
 
-A primeira resposta válida agenda a questão para o dia seguinte. Em revisões posteriores, o acerto avança pelos intervalos de **1, 3, 7, 16, 35 e 70 dias** e permanece em 70 no teto. Todo erro agenda novamente em um dia. Os dias são contados a partir da data da resposta em `America/Sao_Paulo`. Resposta, desempenho e agenda são gravados na mesma transação. Reenviar a resposta recupera o feedback e conserva o vencimento original.
+O primeiro acerto agenda a questão para o dia seguinte. Em revisões posteriores, o acerto avança pelos intervalos de **1, 3, 7, 16, 35 e 70 dias** e permanece em 70 no teto. Um erro remove a revisão agendada da questão, quando houver. Um acerto posterior sem agenda reinicia o intervalo em um dia. Os dias são contados a partir da data da resposta em `America/Sao_Paulo`. Resposta, desempenho e agenda são gravados na mesma transação. Reenviar a resposta recupera o feedback e conserva o vencimento original.
 
 O aluno autenticado acessa `GET /api/aluno/revisoes` ou **Minhas revisões** no painel. A resposta contém `hoje`, `proximaVirada`, `pendentes` (vencimento até hoje) e `futuras` (depois de hoje), em ordem de data e ID. Cada item traz questão, enunciado, assunto, intervalo em dias e vencimento. A lista considera questões classificadas em atividades ativas. O servidor decide a elegibilidade e o navegador consulta a agenda novamente na virada do dia.
 
@@ -186,9 +195,9 @@ O aluno autenticado acessa `GET /api/aluno/revisoes` ou **Minhas revisões** no 
 As duas consultas usam o aluno identificado pelo JWT.
 
 - `GET /api/aluno/sessoes/historico` lista as sessões da mais recente para a mais antiga. Cada página traz até 20 itens em `sessoes`. Quando houver `proximoCursor`, passe seu valor em `?antesDe=...` para continuar.
-- `GET /api/aluno/sessoes/{id}/resultado` retorna `sessao`, `anterior`, `revisoes` e `questoes`. Cada questão apresentada inclui seu número, enunciado, alternativa enviada e correção registrada. Uma questão sem resposta tem `alternativa` e `correta` nulas. A comparação usa a sessão encerrada anterior do mesmo titular e assunto. A primeira tem `anterior: null`. Consultar o ID de outro aluno retorna 404.
+- `GET /api/aluno/sessoes/{id}/resultado` retorna `sessao`, `anterior`, `revisoes`, `questoes`, `pontosIndividuaisNoAssunto` e `pontosIndividuaisNaMateria`. Cada questão apresentada inclui seu número, enunciado, alternativa enviada e correção registrada. Uma questão sem resposta tem `alternativa` e `correta` nulas. A comparação usa a sessão encerrada anterior do mesmo titular e assunto. A primeira tem `anterior: null`. Consultar o ID de outro aluno retorna 404.
 
-Acertos e erros contam somente respostas persistidas. O resultado de uma sessão ativa ou interrompida é parcial. O nível vem do registro da primeira e da última resposta na ordem de apresentação. Extremos sem registro ficam nulos. As questões respondidas com revisão na agenda atual exibem o vencimento vigente, que pode mudar após outra sessão. A fórmula de pontos privados permanece pendente.
+Acertos e erros contam somente respostas persistidas. O resultado de uma sessão ativa ou interrompida é parcial. O nível vem do registro da primeira e da última resposta na ordem de apresentação. Extremos sem registro ficam nulos. As questões respondidas com revisão na agenda atual exibem o vencimento vigente, que pode mudar após outra sessão. Os indicadores da sessão, da sessão anterior e das linhas do histórico incluem `pontosIndividuais`.
 
 `SessaoEstudoIT` verifica histórico, resultados e isolamento.
 

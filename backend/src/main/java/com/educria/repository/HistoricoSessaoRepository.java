@@ -17,6 +17,8 @@ import java.util.Optional;
 public class HistoricoSessaoRepository {
     private final JdbcClient jdbc;
 
+    public record PontuacaoAcumulada(long noAssunto, long naMateria) {}
+
     private static final String ALVO = """
             with alvo as (
                 select s.id from sessoes_estudo s join usuarios u on u.id = s.aluno_id
@@ -26,7 +28,7 @@ public class HistoricoSessaoRepository {
     private static final String INDICADORES = """
             ), tentativas_alvo as (
                 select r.id, r.sessao_id, r.questao_id, cast(r.correta as integer) as correta,
-                       r.nivel_anterior, r.nivel_atual,
+                       r.nivel_anterior, r.nivel_atual, r.pontos_individuais,
                        row_number() over (partition by r.sessao_id order by r.passo) as primeira,
                        row_number() over (partition by r.sessao_id order by r.passo desc) as ultima,
                        case when
@@ -43,7 +45,10 @@ public class HistoricoSessaoRepository {
                    count(case when r.correta = 0 then 1 end) as tentativas_incorretas,
                    count(case when r.erro = 1 then 1 end) as erros,
                    max(case when r.primeira = 1 then r.nivel_anterior end) as antes,
-                   max(case when r.ultima = 1 then r.nivel_atual end) as depois
+                   max(case when r.ultima = 1 then r.nivel_atual end) as depois,
+                   sum(cast(r.pontos_individuais as bigint)) as pontos_individuais,
+                   case when count(r.pontos_individuais) > 0 and count(r.pontos_individuais) = count(r.id)
+                        then 1 else 0 end as pontuacao_completa
             from sessoes_estudo s
             join alvo p on p.id = s.id
             join assuntos a on a.id = s.assunto_id
@@ -55,7 +60,8 @@ public class HistoricoSessaoRepository {
             rs.getLong("id"), rs.getString("assunto"), SituacaoSessao.valueOf(rs.getString("situacao")),
             rs.getTimestamp("iniciada_em").toInstant(), rs.getInt("apresentadas"), rs.getInt("respondidas"),
             rs.getLong("tentativas"), rs.getLong("acertos"), rs.getLong("tentativas_incorretas"), rs.getLong("erros"),
-            rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class));
+            rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class),
+            rs.getObject("pontos_individuais", Long.class), rs.getBoolean("pontuacao_completa"));
 
     public List<Indicadores> listar(String email, Long antesDe, int limite) {
         String filtro = antesDe == null ? "" : " and s.id < :antesDe";
@@ -82,6 +88,23 @@ public class HistoricoSessaoRepository {
                     order by candidata.id desc offset 0 rows fetch next 1 rows only
                 )
                 """ + INDICADORES).param("email", email).param("id", id).query(LER).optional();
+    }
+
+    public PontuacaoAcumulada pontuacaoAcumulada(String email, long id) {
+        return jdbc.sql("""
+                select coalesce(sum(case when historica.assunto_id = atual.assunto_id
+                           then cast(r.pontos_individuais as bigint) end), 0) as no_assunto,
+                       coalesce(sum(cast(r.pontos_individuais as bigint)), 0) as na_materia
+                from sessoes_estudo atual
+                join usuarios u on u.id = atual.aluno_id
+                join assuntos alvo on alvo.id = atual.assunto_id
+                join respostas_aluno r on r.aluno_id = atual.aluno_id and r.pontos_individuais is not null
+                join sessoes_estudo historica on historica.id = r.sessao_id and historica.aluno_id = r.aluno_id
+                join assuntos a on a.id = historica.assunto_id and a.materia_id = alvo.materia_id
+                where atual.id = :id and u.email = :email
+                """).param("id", id).param("email", email)
+                .query((rs, i) -> new PontuacaoAcumulada(rs.getLong("no_assunto"), rs.getLong("na_materia")))
+                .single();
     }
 
     public List<Item> questoes(String email, long id) {

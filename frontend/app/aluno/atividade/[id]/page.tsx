@@ -13,6 +13,7 @@ import { api } from "@/lib/api";
 import { chaveEvolucao } from "@/lib/evolucao";
 import { Alternativa, EstadoSessao, FeedbackResposta, limiteQuestoes, mensagemErro, QuestaoAtual, rotaSessoes, semQuestoes,
   useAssuntosDeEstudo, useChaveAluno } from "@/lib/estudo";
+import { formatarPontos } from "@/lib/pontuacao";
 import estilos from "./leitura.module.css";
 
 const letras = ["A", "B", "C", "D"] as const;
@@ -92,6 +93,9 @@ function Alternativas({ questao, feedback, bloqueadas, enviando, enviar }: Alter
       {feedback ? (
         <div ref={retorno} tabIndex={-1} aria-label="Correção da resposta" role="group" className={`${estilos.retorno} scroll-mt-24 space-y-2 rounded-xl p-4 text-slate-900 focus-visible:outline-indigo-700 ${feedback.correta ? "bg-emerald-50" : orientacao?.cor ?? "bg-amber-50"}`}>
           <p role="status" className="font-semibold">{feedback.correta ? "Você acertou!" : "Resposta incorreta."}</p>
+          {feedback.pontosConcedidos != null && (feedback.pontosConcedidos > 0
+            ? <p className="font-semibold text-emerald-900">+{formatarPontos(feedback.pontosConcedidos)}</p>
+            : <p className="text-sm text-slate-600">Nenhum ponto nesta resposta.</p>)}
           {feedback.nivelAnterior != null && feedback.nivelAtual != null && (
             <p>Nível neste assunto: {feedback.nivelAnterior} → {feedback.nivelAtual}</p>
           )}
@@ -159,7 +163,9 @@ export default function QuestaoDaSessao() {
       await cache.invalidateQueries({ queryKey: chave, exact: true });
       void cache.invalidateQueries({ queryKey: ["historico-sessoes", aluno] });
       void cache.invalidateQueries({ queryKey: [chaveEvolucao, aluno] });
-      void cache.invalidateQueries({ queryKey: ["resultado-sessao", aluno, id] });
+      void cache.invalidateQueries({ queryKey: ["aluno-desempenho", aluno] });
+      void cache.invalidateQueries({ queryKey: ["resultado-sessao", aluno] });
+      void cache.invalidateQueries({ queryKey: ["catalogo", "materias", aluno] });
       void cache.invalidateQueries({ queryKey: ["catalogo", "assuntos", aluno] });
       void cache.invalidateQueries({ queryKey: ["assuntos-de-estudo", aluno] });
       void cache.invalidateQueries({ queryKey: ["revisoes", aluno] });
@@ -176,7 +182,7 @@ export default function QuestaoDaSessao() {
     </CardContent></Card>
   );
 
-  const { sessao, questaoAtual } = consulta.data;
+  const { sessao, questaoAtual, pontosSessao } = consulta.data;
   const assunto = assuntos.data?.find((a) => a.id === sessao.assuntoId);
   const posicao = sessao.questoesApresentadas;
   const esgotada = semQuestoes(acao.error);
@@ -206,6 +212,9 @@ export default function QuestaoDaSessao() {
             <span aria-live="polite">Questões distintas: {posicao} de até {limiteQuestoes} · Para reaprender: {pendencias}</span>
             {questaoAtual && <Badge variant="secondary">Dificuldade {questaoAtual.dificuldade}</Badge>}
           </div>
+          {pontosSessao != null && <p className="text-sm font-semibold text-indigo-700" aria-live="polite">
+            {formatarPontos(pontosSessao)} na sessão
+          </p>}
           {repetindo && <p className={`${estilos.orientacao} font-semibold text-indigo-700`}>Nova tentativa de uma questão anterior</p>}
           <Progress value={100 * posicao / limiteQuestoes} className="h-[8px]" aria-label="Questões apresentadas"
             aria-valuenow={posicao} aria-valuemin={0} aria-valuemax={limiteQuestoes} />

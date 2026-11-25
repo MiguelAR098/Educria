@@ -28,6 +28,8 @@ public class HistoricoSessaoService {
         var sessao = historico.obter(email, id)
                 .orElseThrow(() -> new ApiException("Sessão não encontrada", HttpStatus.NOT_FOUND));
         var anterior = historico.anteriorComparavel(email, id).orElse(null);
-        return new ResultadoSessao(sessao, anterior, historico.revisoes(email, id), historico.questoes(email, id));
+        var pontos = historico.pontuacaoAcumulada(email, id);
+        return new ResultadoSessao(sessao, anterior, historico.revisoes(email, id), historico.questoes(email, id),
+                pontos.noAssunto(), pontos.naMateria());
     }
 }

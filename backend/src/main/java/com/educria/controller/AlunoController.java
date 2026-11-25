@@ -37,8 +37,8 @@ public class AlunoController {
     }
 
     @GetMapping("/materias")
-    public List<MateriaResumo> materias() {
-        return alunoService.listarMaterias();
+    public List<MateriaResumo> materias(@AuthenticationPrincipal UserDetails usuario) {
+        return alunoService.listarMaterias(getAlunoId(usuario));
     }
 
     @GetMapping("/materias/{materiaId}/assuntos")

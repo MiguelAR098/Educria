@@ -13,6 +13,7 @@ import com.educria.repository.AlunoRepository;
 import com.educria.repository.MateriaRepository;
 import com.educria.repository.DesempenhoAdaptativoRepository;
 import com.educria.repository.PontuacaoColetivaRepository;
+import com.educria.repository.RespostaAlunoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,10 +30,11 @@ public class AlunoService {
     private final PontuacaoColetivaRepository pontuacaoColetivaRepository;
 
     private final MateriaRepository materiaRepository;
+    private final RespostaAlunoRepository respostas;
 
     @Transactional(readOnly = true)
-    public List<MateriaResumo> listarMaterias() {
-        return materiaRepository.listarCatalogo();
+    public List<MateriaResumo> listarMaterias(Long alunoId) {
+        return materiaRepository.listarCatalogo(alunoId);
     }
 
     @Transactional(readOnly = true)
@@ -43,6 +45,7 @@ public class AlunoService {
         return materiaRepository.listarAssuntos(materiaId, alunoId);
     }
 
+    @Transactional(readOnly = true)
     public DesempenhoResponse getMeuDesempenho(Long alunoId) {
         DesempenhoAdaptativo d = desempenhoRepository.findByAlunoId(alunoId)
                 .orElseThrow(() -> new ApiException("Desempenho não encontrado", HttpStatus.NOT_FOUND));
@@ -53,6 +56,7 @@ public class AlunoService {
                 .totalAcertos(d.getTotalAcertos())
                 .totalErros(d.getTotalErros())
                 .nivelMaximo(d.isNivelMaximo())
+                .pontosIndividuais(respostas.pontosDoAluno(alunoId))
                 .build();
     }
 

@@ -2,8 +2,8 @@
 
 Dependências: python -m pip install playwright && python -m playwright install chromium
 EDUCRIA_BASE_URL escolhe o servidor (padrão: http://127.0.0.1:3000).
-EDUCRIA_API_REAL=1 executa também o fluxo com uma conta nova no backend de
-desenvolvimento (SPRING_PROFILES_ACTIVE=dev). CHROMIUM_BIN é opcional.
+EDUCRIA_API_REAL=1 executa também os fluxos com contas novas em um backend de
+desenvolvimento (SPRING_PROFILES_ACTIVE=dev) com SQL Server. CHROMIUM_BIN é opcional.
 """
 import os
 import re
@@ -26,6 +26,7 @@ class ApiDeTeste:
     def __init__(self):
         self.aberta = False
         self.respondida = False
+        self.acertou = True
         self.explicacao = "7 mais 8 é 15."
         self.situacao = "ATIVA"
         self.sessao_anterior = None
@@ -53,15 +54,25 @@ class ApiDeTeste:
             self.respondida = True
         elif (metodo, path) == ("PUT", base + "/7/interromper"):
             self.situacao = "INTERROMPIDA"
+        elif (metodo, path) == ("PUT", base + "/7/retomar"):
+            self.situacao = "ATIVA"
         elif metodo != "GET":
             return route.fulfill(status=405, json={})
 
         resumo = dict(id=7, assuntoId=4, situacao=self.situacao, questoesApresentadas=1)
-        feedback = dict(alternativa="B", correta=True, explicacao=self.explicacao, nivelAnterior=1, nivelAtual=2)
-        estado = dict(sessao=resumo, questaoAtual=self.questao, feedback=feedback if self.respondida else None)
+        feedback = dict(alternativa="B", correta=self.acertou, explicacao=self.explicacao,
+                        nivelAnterior=1, nivelAtual=2 if self.acertou else 1,
+                        pontosConcedidos=10 if self.acertou else 0, reaprender=not self.acertou)
+        pontos = feedback["pontosConcedidos"] if self.respondida else 0
+        estado = dict(sessao=resumo, questaoAtual=self.questao, feedback=feedback if self.respondida else None,
+                      pontosSessao=pontos)
         indicador = dict(id=7, assunto=ASSUNTO, situacao=self.situacao, iniciadaEm="2026-01-02T15:00:00Z",
                          apresentadas=1, respondidas=int(self.respondida), tentativas=int(self.respondida),
-                         acertos=int(self.respondida), tentativasIncorretas=0, erros=0,
+                         acertos=int(self.respondida and self.acertou),
+                         tentativasIncorretas=int(self.respondida and not self.acertou),
+                         erros=int(self.respondida and not self.acertou),
+                         pontosIndividuais=pontos if self.respondida else None,
+                         pontuacaoCompleta=self.respondida,
                          nivelAntes=1 if self.respondida else None, nivelDepois=2 if self.respondida else None)
         revisao = dict(questaoId=12, enunciado=self.questao["enunciado"], assunto=ASSUNTO,
                        proximaRevisao=self.amanha, intervaloDias=1)
@@ -69,21 +80,25 @@ class ApiDeTeste:
             return route.fulfill(status=503, json={})
         dados = {
             "/api/aluno/desempenho": dict(nivelAtual=5, totalAcertos=17, totalErros=3, nivelMaximo=False,
-                                          errosConsecutivos=0),
+                                          errosConsecutivos=0, pontosIndividuais=pontos),
             "/api/aluno/turma/pontos": dict(turmaId=8, nomeTurma="Turma azul", pontosTotais=317),
-            "/api/aluno/materias": [dict(id=1, nome="Matemática", totalAssuntos=1)],
-            "/api/aluno/materias/1/assuntos": [dict(id=4, nome=ASSUNTO, nivelAtual=1 + int(self.respondida))],
+            "/api/aluno/materias": [dict(id=1, nome="Matemática", totalAssuntos=1, pontosIndividuais=pontos)],
+            "/api/aluno/materias/1/assuntos": [dict(id=4, nome=ASSUNTO,
+                                                    nivelAtual=1 + int(self.respondida and self.acertou),
+                                                    pontosIndividuais=pontos)],
             "/api/aluno/revisoes": dict(hoje=datetime.now(timezone.utc).date().isoformat(),
                                         proximaVirada=self.amanha + "T03:00:00Z", pendentes=self.pendentes,
                                         futuras=[revisao] if self.respondida else []),
             base: estado if metodo == "POST" else [resumo] if self.aberta else [],
             base + "/7": estado,
             base + "/7/interromper": estado,
+            base + "/7/retomar": estado,
             base + "/7/questoes/12/resposta": feedback,
             base + "/historico": dict(sessoes=[indicador] if self.aberta else [], proximoCursor=None),
             base + "/7/resultado": dict(sessao=indicador, anterior=self.sessao_anterior, revisoes=[revisao],
+                                        pontosIndividuaisNoAssunto=pontos, pontosIndividuaisNaMateria=pontos,
                                         questoes=[dict(numero=1, enunciado=self.questao["enunciado"],
-                                                       alternativa="B", correta=True)]),
+                                                       alternativa="B", correta=self.acertou)]),
         }
         if path not in dados:
             return route.fulfill(status=404, json={})
@@ -132,6 +147,7 @@ class DashboardAluno(unittest.TestCase):
         campos_publicos = {"id", "assuntoId", "dificuldade", "enunciado",
                            "alternativaA", "alternativaB", "alternativaC", "alternativaD"}
         self.assertFalse(set(estado["questaoAtual"]) - campos_publicos)
+        pontos_ineditos = estado["questaoAtual"]["dificuldade"] * 10
         enviar = page.get_by_role("button", name="Enviar resposta")
         expect(enviar).to_be_disabled()
         pergunta = page.get_by_role("heading", name=re.compile(r"Quanto é \d+ \+ \d+"))
@@ -143,6 +159,7 @@ class DashboardAluno(unittest.TestCase):
         label.click()
         enviar.click()
         expect(page.get_by_text("Você acertou!")).to_be_visible()
+        expect(page.get_by_text(f"+{pontos_ineditos} pontos", exact=True)).to_be_visible()
         expect(page.get_by_text("Nível neste assunto: 1 → 2")).to_be_visible()
         page.get_by_role("button", name="Pausar e sair").click()
         toggle = page.get_by_role("button", name=f"Evolução de {ASSUNTO}", exact=True)
@@ -160,6 +177,8 @@ class DashboardAluno(unittest.TestCase):
         expect(page.get_by_role("heading", name="Resultado da sessão")).to_be_visible()
         page.reload()
         expect(page.get_by_text("Resultado parcial")).to_be_visible()
+        pontos_sessao = page.get_by_text("Pontos na sessão", exact=True).locator("xpath=following-sibling::dd")
+        expect(pontos_sessao).to_have_text(f"{pontos_ineditos} pontos")
         expect(page.get_by_text("Acertou", exact=True)).to_be_visible()
         expect(page.get_by_text(f"Sua alternativa: {letra}", exact=False)).to_be_visible()
 
@@ -448,6 +467,99 @@ class DashboardAluno(unittest.TestCase):
         expect(self.page.get_by_text("Nível 5 de 10")).to_be_visible()
         expect(self.page.get_by_text(re.compile("%"))).to_have_count(0)
 
+    def test_pontos_da_atividade_persistem_ao_recarregar_e_retomar(self):
+        pagina = self.page
+        self.abrir_questao_de_teste()
+        expect(pagina.get_by_text("0 pontos na sessão", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("+10 pontos", exact=True)).to_have_count(0)
+        pagina.locator("fieldset label").nth(1).click()
+        pagina.get_by_role("button", name="Enviar resposta").click()
+        expect(pagina.get_by_text("+10 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("10 pontos na sessão", exact=True)).to_be_visible()
+
+        pagina.reload()
+        expect(pagina.get_by_text("+10 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("10 pontos na sessão", exact=True)).to_be_visible()
+        pagina.get_by_role("button", name="Pausar e sair").click()
+        catalogo = pagina.get_by_role("region", name="Minhas matérias")
+        expect(catalogo.get_by_text("Sua pontuação individual é privada.")).to_be_visible()
+        expect(catalogo.get_by_text("10 pontos no total", exact=True)).to_be_visible()
+        expect(catalogo.get_by_text("10 pontos", exact=True)).to_have_count(2)
+        assunto = catalogo.get_by_role("listitem").filter(has_text=ASSUNTO)
+        expect(assunto.get_by_text("10 pontos", exact=True)).to_be_visible()
+        expect(assunto.get_by_text("Nível 2/10", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("317 pts", exact=True)).to_be_visible()
+
+        pagina.get_by_role("link", name="Histórico de sessões").click()
+        pausada = pagina.get_by_role("link").filter(has_text=ASSUNTO)
+        expect(pausada.get_by_text("Interrompida", exact=False)).to_be_visible()
+        expect(pausada.get_by_text("10 pontos", exact=True)).to_be_visible()
+        pausada.click()
+        expect(pagina.get_by_text("Resultado parcial", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("10 pontos", exact=True)).to_have_count(3)
+        pagina.get_by_role("link", name="Abrir atividade").click()
+        expect(pagina.get_by_text("10 pontos na sessão", exact=True)).to_be_visible()
+        pagina.get_by_role("button", name="Retomar sessão").click()
+        expect(pagina.get_by_text("+10 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("10 pontos na sessão", exact=True)).to_be_visible()
+
+    def test_zero_pontos_preserva_feedback_de_reaprendizagem(self):
+        pagina = self.page
+        api = self.abrir_questao_de_teste()
+        api.acertou = False
+        pagina.locator("fieldset label").nth(1).click()
+        pagina.get_by_role("button", name="Enviar resposta").click()
+        expect(pagina.get_by_text("Resposta incorreta.", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("Nenhum ponto nesta resposta.", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("Esta questão voltará", exact=False)).to_be_visible()
+        expect(pagina.get_by_text("0 pontos na sessão", exact=True)).to_be_visible()
+
+    def test_historico_distingue_zero_de_legado_e_compara_apenas_pontos_registrados(self):
+        pagina = self.page
+        api = ApiDeTeste()
+        pagina.route("**/api/**", api.atender)
+        comum = dict(assunto=ASSUNTO, situacao="ENCERRADA", iniciadaEm="2026-01-02T15:00:00Z",
+                     apresentadas=1, respondidas=1, tentativas=1, acertos=0, tentativasIncorretas=1,
+                     erros=1, nivelAntes=1, nivelDepois=1, pontuacaoCompleta=True)
+        mista = dict(comum, id=10, apresentadas=2, respondidas=2, tentativas=2, acertos=1,
+                     pontosIndividuais=25, pontuacaoCompleta=False)
+        atual = dict(comum, id=9, acertos=1, tentativasIncorretas=0, erros=0, pontosIndividuais=50)
+        anterior = dict(comum, id=8, pontosIndividuais=0)
+        legado = dict(comum, id=7, pontosIndividuais=None, pontuacaoCompleta=False)
+        pagina.route("**/api/aluno/sessoes/historico", lambda rota: rota.fulfill(
+            json=dict(sessoes=[mista, atual, anterior, legado], proximoCursor=None)))
+        resultados = {
+            f"/api/aluno/sessoes/{sessao['id']}/resultado": dict(
+                sessao=sessao, anterior=comparada, questoes=[], revisoes=[],
+                pontosIndividuaisNoAssunto=65, pontosIndividuaisNaMateria=110)
+            for sessao, comparada in ((mista, atual), (atual, anterior), (anterior, legado), (legado, None))
+        }
+
+        def atender_resultado(rota):
+            rota.fulfill(json=resultados[urlparse(rota.request.url).path])
+
+        pagina.route("**/api/aluno/sessoes/*/resultado", atender_resultado)
+
+        self.login()
+        pagina.get_by_role("link", name="Histórico de sessões").click()
+        for identificador, texto in ((10, "25 pontos"), (9, "50 pontos"), (8, "0 pontos"), (7, "Pontuação não registrada")):
+            expect(pagina.locator(f'a[href="/aluno/historico/{identificador}"]').get_by_text(texto, exact=True)).to_be_visible()
+        pagina.locator('a[href="/aluno/historico/9"]').click()
+        expect(pagina.get_by_text("65 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("110 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_role("row", name="Pontos individuais 50 pontos 0 pontos")).to_be_visible()
+        pagina.goto("/aluno/historico/8")
+        expect(pagina.get_by_text("0 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("A sessão anterior não tem pontuação registrada.")).to_be_visible()
+        expect(pagina.get_by_role("row", name="Pontos individuais", exact=False)).to_have_count(0)
+        expect(pagina.get_by_role("row", name="Acertos 0 0")).to_be_visible()
+        pagina.goto("/aluno/historico/7")
+        expect(pagina.get_by_text("Pontuação não registrada", exact=True)).to_be_visible()
+        pagina.goto("/aluno/historico/10")
+        expect(pagina.get_by_text("25 pontos", exact=True)).to_be_visible()
+        expect(pagina.get_by_text("A pontuação da sessão inclui apenas as respostas com pontos registrados.")).to_be_visible()
+        expect(pagina.get_by_role("row", name="Pontos individuais", exact=False)).to_have_count(0)
+
     def test_revisao_pendente_e_erro_da_turma(self):
         api = ApiDeTeste()
         api.falha_turma = True
@@ -494,7 +606,7 @@ class DashboardAluno(unittest.TestCase):
         }, headers={"X-Educria-Client": "web"})
         self.assertEqual(cadastro.status, 201)
 
-    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer backend dev e PostgreSQL")
+    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer EDUCRIA_API_REAL=1 e backend dev com SQL Server")
     def test_reaprender_apos_sair_e_entrar(self):
         self.cadastrar_na_api_real()
         self.login()
@@ -564,7 +676,7 @@ class DashboardAluno(unittest.TestCase):
         expect(page.locator("p").filter(has_text="Tentativa 1 ·")).to_contain_text("Errou")
         expect(page.locator("p").filter(has_text="Tentativa 2 ·")).to_contain_text("Acertou")
 
-    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer backend dev e PostgreSQL")
+    @unittest.skipUnless(os.getenv("EDUCRIA_API_REAL") == "1", "requer EDUCRIA_API_REAL=1 e backend dev com SQL Server")
     def test_fluxo_com_api_real(self):
         self.cadastrar_na_api_real()
         self.fluxo()
