@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { dataBrasileira } from "@/lib/revisoes";
 import type { DiaEvolucao } from "@/lib/evolucao";
@@ -9,11 +12,14 @@ const series = [
   { rotulo: "Outras tentativas incorretas", cor: "bg-slate-400", valor: (dia: DiaEvolucao) => dia.tentativasIncorretas - dia.erros },
 ];
 
-export function GraficoEvolucao({ dias }: { dias: DiaEvolucao[] }) {
-  const maior = Math.max(0, ...dias.map((dia) => dia.tentativas));
+export function GraficoEvolucao({ dias }: { dias: readonly DiaEvolucao[] }) {
+  const [ocultarDiasSemAtividade, setOcultarDiasSemAtividade] = useState(true);
+  const diasCronologicos = [...dias].sort((a, b) => a.data.localeCompare(b.data));
+  const diasDaTabela = diasCronologicos.filter((dia) => !ocultarDiasSemAtividade || dia.tentativas > 0).reverse();
+  const maior = Math.max(0, ...diasCronologicos.map((dia) => dia.tentativas));
   const intervalo = Math.max(1, Math.ceil(maior / 3));
   const teto = intervalo * 3;
-  const marcas = [0, 1, 2, 3, 4].map((indice) => dias[Math.floor(indice * (dias.length - 1) / 4)]);
+  const marcas = [0, 1, 2, 3, 4].map((indice) => diasCronologicos[Math.floor(indice * (diasCronologicos.length - 1) / 4)]);
 
   return (
     <Card>
@@ -39,7 +45,7 @@ export function GraficoEvolucao({ dias }: { dias: DiaEvolucao[] }) {
                 {[0, 1, 2].map((linha) => <div key={linha} className="border-t border-dashed border-slate-200" />)}
               </div>
               <div className="relative flex h-full gap-px px-px sm:gap-1">
-                {dias.map((dia) => (
+                {diasCronologicos.map((dia) => (
                   <div key={dia.data} title={`${dataBrasileira(dia.data)} · ${dia.tentativas} tentativas · ${dia.acertos} acertos · ${dia.tentativasIncorretas} tentativas incorretas · ${dia.erros} erros contabilizados`}
                     className="flex min-w-0 flex-1 flex-col-reverse hover:bg-indigo-50">
                     {series.map(({ rotulo, cor, valor }) => (
@@ -60,29 +66,41 @@ export function GraficoEvolucao({ dias }: { dias: DiaEvolucao[] }) {
         )}
         <details className="rounded-lg border border-slate-200 px-3">
           <summary className="cursor-pointer rounded py-2 text-sm font-semibold text-indigo-700">Ver dados por dia</summary>
-          <table className="w-full table-auto border-collapse text-left text-sm tabular-nums">
-            <caption className="sr-only">Tentativas, acertos, tentativas incorretas e erros contabilizados por data</caption>
-            <thead className="bg-slate-50 text-slate-700">
-              <tr>
-                <th scope="col" className="px-1 py-2 sm:px-3">Data</th>
-                <th scope="col" className="px-1 py-2 text-right sm:px-3">Tentativas</th>
-                <th scope="col" className="px-1 py-2 text-right sm:px-3">Acertos</th>
-                <th scope="col" className="px-1 py-2 text-right sm:px-3">Tentativas incorretas</th>
-                <th scope="col" className="px-1 py-2 text-right sm:px-3">Erros contabilizados</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {dias.map((dia) => (
-                <tr key={dia.data}>
-                  <th scope="row" className="px-1 py-1.5 font-medium sm:px-3"><time dateTime={dia.data}>{dataBrasileira(dia.data)}</time></th>
-                  <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.tentativas)}</td>
-                  <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.acertos)}</td>
-                  <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.tentativasIncorretas)}</td>
-                  <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.erros)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <label className="mb-2 inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={ocultarDiasSemAtividade}
+              onChange={(evento) => setOcultarDiasSemAtividade(evento.currentTarget.checked)}
+              className="h-4 w-4 shrink-0 accent-indigo-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" />
+            Ocultar dias sem atividade
+          </label>
+          {diasDaTabela.length === 0 ? (
+            <p className="pb-3 text-sm text-slate-700">Nenhuma atividade registrada no período.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full table-auto border-collapse text-left text-sm tabular-nums">
+                <caption className="sr-only">Tentativas, acertos, tentativas incorretas e erros contabilizados por data</caption>
+                <thead className="bg-slate-50 text-slate-700">
+                  <tr>
+                    <th scope="col" aria-sort="descending" className="px-1 py-2 sm:px-3">Data</th>
+                    <th scope="col" className="px-1 py-2 text-right sm:px-3">Tentativas</th>
+                    <th scope="col" className="px-1 py-2 text-right sm:px-3">Acertos</th>
+                    <th scope="col" className="px-1 py-2 text-right sm:px-3">Tentativas incorretas</th>
+                    <th scope="col" className="px-1 py-2 text-right sm:px-3">Erros contabilizados</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {diasDaTabela.map((dia) => (
+                    <tr key={dia.data}>
+                      <th scope="row" className="px-1 py-1.5 font-medium sm:px-3"><time dateTime={dia.data}>{dataBrasileira(dia.data)}</time></th>
+                      <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.tentativas)}</td>
+                      <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.acertos)}</td>
+                      <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.tentativasIncorretas)}</td>
+                      <td className="px-1 py-1.5 text-right sm:px-3">{numero.format(dia.erros)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </details>
       </CardContent>
     </Card>

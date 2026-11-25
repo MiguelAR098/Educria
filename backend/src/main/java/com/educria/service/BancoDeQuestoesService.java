@@ -1,5 +1,6 @@
 package com.educria.service;
 
+import com.educria.domain.NivelAdaptativo;
 import com.educria.domain.entity.Assunto;
 import com.educria.domain.entity.Atividade;
 import com.educria.domain.entity.Materia;
@@ -7,6 +8,7 @@ import com.educria.domain.entity.Professor;
 import com.educria.domain.entity.Questao;
 import com.educria.dto.AssuntoSimples;
 import com.educria.dto.BancoDeQuestoes;
+import com.educria.dto.CoberturaDoBanco;
 import com.educria.dto.QuestaoDoProfessor;
 import com.educria.dto.QuestaoExportada;
 import com.educria.dto.QuestaoRequest;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +44,7 @@ public class BancoDeQuestoesService {
     private static final Set<String> LETRAS = Set.of("A", "B", "C", "D");
     static final int LIMITE_IMPORTACAO = 200;
     private static final int LIMITE_MENSAGENS = 20;
+    private static final int QUANTIDADE_DIFICULDADES = NivelAdaptativo.MAXIMO - NivelAdaptativo.MINIMO + 1;
 
     private final ProfessorRepository professorRepository;
     private final AssuntoRepository assuntoRepository;
@@ -66,6 +70,30 @@ public class BancoDeQuestoesService {
                 materia.getNome(),
                 assuntos.stream().map(a -> new AssuntoSimples(a.getId(), a.getNome())).toList(),
                 questoes.stream().map(q -> paraResposta(q, uso.get(q.getId()))).toList());
+    }
+
+    @Transactional(readOnly = true)
+    public CoberturaDoBanco cobertura(String email) {
+        Long materiaId = buscarProfessor(email).getMateria().getId();
+        List<Assunto> assuntos = assuntoRepository.daMateria(materiaId);
+        Map<Long, long[]> contagensPorAssunto = new HashMap<>();
+
+        for (var contagem : bancoRepository.contarElegiveis(materiaId)) {
+            long[] contagens = contagensPorAssunto.computeIfAbsent(contagem.getAssuntoId(),
+                    id -> new long[QUANTIDADE_DIFICULDADES]);
+            contagens[contagem.getDificuldade() - NivelAdaptativo.MINIMO] = contagem.getTotal();
+        }
+
+        long[] semQuestoes = new long[QUANTIDADE_DIFICULDADES];
+        List<CoberturaDoBanco.Assunto> cobertura = assuntos.stream().map(assunto -> {
+            long[] contagens = contagensPorAssunto.getOrDefault(assunto.getId(), semQuestoes);
+            return new CoberturaDoBanco.Assunto(assunto.getId(), assunto.getNome(),
+                    Arrays.stream(contagens).boxed().toList(), Arrays.stream(contagens).sum());
+        }).toList();
+        long total = cobertura.stream().mapToLong(CoberturaDoBanco.Assunto::total).sum();
+        long vazias = cobertura.stream().flatMap(assunto -> assunto.contagens().stream())
+                .filter(contagem -> contagem == 0).count();
+        return new CoberturaDoBanco(cobertura, total, vazias);
     }
 
     @Transactional

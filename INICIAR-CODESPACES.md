@@ -28,10 +28,33 @@ bash scripts/iniciar.sh
 
 O iniciador prepara o arquivo privado `.env`, espera o banco ficar saudável, empacota o backend e inicia o Next.js. Mantenha esse terminal aberto e aguarde `Ready`. O Codespace só precisa encaminhar a porta **3000**. Mantenha a visibilidade **Private**. A API usa internamente 8080 e o SQL Server usa 1433 no loopback do Codespace.
 
+## Carregar as contas de demonstração
+
+Com a aplicação rodando e o catálogo de Matemática disponível, execute na raiz do projeto, em outro terminal. A carga inicial usa oito questões ativas de Matemática com dificuldade cadastrada para as revisões de Carla e três questões ativas de frações com uma alternativa incorreta preenchida para os erros de Ana. O Flyway preenche esse catálogo ao iniciar uma base nova com o perfil `dev`. As contas ficam disponíveis para login assim que a carga termina, sem reiniciar o backend.
+
+```bash
+bash scripts/sqlserver/carregar-demo.sh --desenvolvimento
+```
+
+A carga usa o banco `educria` do serviço `db` no Compose local. Os dois professores e os quatro alunos ficam na turma `8º A` de 2026, reservada pelo código `DEMO-8A`. Repetir o comando preserva o progresso já registrado. Se algum e-mail, matrícula ou vínculo conflitar com os dados esperados, a transação é revertida e o comando informa o conflito.
+
+| E-mail | Senha | Perfil ou cenário inicial |
+|---|---|---|
+| `professor@educria.com` | `professor123` | Professora de Matemática |
+| `portugues@educria.com` | `professor123` | Professor de Português, com acesso ao cadastro de assuntos |
+| `ana.demo@educria.com` | `aluno123` | Em risco, com dificuldades em frações |
+| `bruno.demo@educria.com` | `aluno123` | Bom desempenho |
+| `carla.demo@educria.com` | `aluno123` | Em atenção, com oito revisões vencidas |
+| `diego.demo@educria.com` | `aluno123` | Sem atividade |
+
+Em uma base descartável já preparada com o esquema e as questões, acrescente `--banco educria_demo_<sufixo>`. Essa base precisa da propriedade estendida `EducriaAmbiente` com o valor `descartavel`.
+
+A carga de contas requer Bash, o socket Unix do Docker e o SQL Server Developer do Compose. O roteiro Windows nativo com SQL Server Express e autenticação integrada não executa essa carga. Em uma máquina Windows, use o Codespaces para carregar as contas.
+
 ## Conferir os fluxos
 
 1. Abra a porta 3000 pela aba **Ports**. Registre um aluno sintético e teste login, matéria, sessão, resposta, histórico e a evolução de 30 dias.
-2. Prepare um professor sintético com matéria e turma vinculadas para testar login, acompanhamento e recados. O callback `dev` cria as questões. O cadastro público cria apenas alunos. O provisionamento do professor na base `dev` é uma etapa da equipe.
+2. Use os professores de demonstração para conferir o acompanhamento e os recados da turma, os alertas de frações e revisões, e o cadastro de assuntos de Português.
 3. Com o iniciador rodando, execute o verificador no segundo terminal. Ele usa a base de desenvolvimento, cria uma conta sintética e verifica o `Flyway`, autenticação e catálogo.
 4. Registre branch, commit, versão do banco e resultados de cada fluxo em uma sessão limpa. O verificador automático cobre o cadastro e o catálogo. A sessão, a evolução e o fluxo do professor exigem passos adicionais.
 

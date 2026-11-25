@@ -1,42 +1,44 @@
--- Dados de histórico para os alertas da turma (etapa 9). Rode depois de criar_alunos_demo.sql
--- e criar_desempenho_assuntos_demo.sql:
---   docker compose exec -T db psql -U educria -d educria < backend/src/test/sql/criar_historico_demo.sql
--- Esperado no painel da turma: alerta "Assunto travado na turma" (frações), alerta "Revisões acumuladas"
--- (Carla) e "Erra mais em: frações" para a Ana. Evolução em 30 dias, tendência e os alertas de perda de nível
--- e de "sem desafio" dependem de respostas com nível, que só existem quando o aluno estuda pelo sistema.
-\set ON_ERROR_STOP on
-BEGIN;
+-- Em uma base nova, o callback Flyway do perfil dev fornece as questões de Matemática.
+DECLARE @agora datetime2(6) = CONVERT(datetime2(6), SYSDATETIMEOFFSET() AT TIME ZONE 'E. South America Standard Time');
+DECLARE @matematica bigint = (SELECT id FROM dbo.materias WHERE nome = N'Matemática');
+DECLARE @carla bigint = (SELECT id FROM #demo_alunos WHERE email = N'carla.demo@educria.com' AND novo = 1);
+DECLARE @ana bigint = (SELECT id FROM #demo_alunos WHERE email = N'ana.demo@educria.com' AND novo = 1);
 
--- 1) Frações travada: Ana já está no nível 1; Bruno e Carla passam ao nível 2 (3 alunos no nível baixo).
-UPDATE desempenho_por_assunto d
-SET nivel_atual = 2, erros_consecutivos = 0, total_acertos = 1, total_erros = 3
-FROM usuarios u, assuntos a
-WHERE d.aluno_id = u.id AND d.assunto_id = a.id AND a.nome = 'frações'
-  AND u.email IN ('bruno.demo@educria.com', 'carla.demo@educria.com');
+-- Carla começa com oito revisões vencidas, agendadas para ontem em São Paulo.
+IF @carla IS NOT NULL
+BEGIN
+    INSERT INTO dbo.repeticao_espacada (aluno_id, questao_id, intervalo_atual, proxima_revisao)
+    SELECT TOP (8) @carla, q.id, N'D1', DATEADD(day, -1, CONVERT(date, @agora))
+    FROM dbo.questoes q
+    JOIN dbo.atividades atividade ON atividade.id = q.atividade_id
+    JOIN dbo.assuntos a ON a.id = q.assunto_id
+    WHERE atividade.ativa = 1 AND q.ativa = 1 AND q.dificuldade IS NOT NULL AND a.materia_id = @matematica
+    ORDER BY q.id;
 
--- 2) Carla com 8 revisões vencidas de questões de Matemática.
-INSERT INTO repeticao_espacada (aluno_id, questao_id, intervalo_atual, proxima_revisao)
-SELECT u.id, q.id, 'D1', CURRENT_DATE - 1
-FROM usuarios u,
-     (SELECT qq.id FROM questoes qq
-        JOIN assuntos a ON a.id = qq.assunto_id
-        JOIN materias m ON m.id = a.materia_id
-       WHERE m.nome = 'Matemática'
-       ORDER BY qq.id LIMIT 8) q
-WHERE u.email = 'carla.demo@educria.com'
-ON CONFLICT DO NOTHING;
+    IF @@ROWCOUNT <> 8
+        THROW 51140, N'A carga das revisões exige pelo menos oito questões ativas de Matemática com dificuldade cadastrada.', 1;
+END;
 
--- 3) Ana com 3 erros recentes em frações (respostas sem sessão, portanto sem nível).
-INSERT INTO respostas_aluno (aluno_id, questao_id, resposta_dada, correta, respondido_em)
-SELECT u.id, q.id, 'A', FALSE, now() - (q.n || ' days')::interval
-FROM usuarios u,
-     (SELECT qq.id, row_number() OVER (ORDER BY qq.id) AS n
-        FROM questoes qq
-        JOIN assuntos a ON a.id = qq.assunto_id
-       WHERE a.nome = 'frações'
-       ORDER BY qq.id LIMIT 3) q
-WHERE u.email = 'ana.demo@educria.com'
-  AND NOT EXISTS (SELECT 1 FROM respostas_aluno r
-                   WHERE r.aluno_id = u.id AND r.questao_id = q.id AND r.sessao_id IS NULL);
+-- Ana tem três erros recentes em frações. Sessão, passo e níveis permanecem nulos.
+IF @ana IS NOT NULL
+BEGIN
+    INSERT INTO dbo.respostas_aluno (aluno_id, questao_id, resposta_dada, correta, respondido_em)
+    SELECT TOP (3) @ana, q.id, resposta.letra, 0,
+        DATEADD(day, -CONVERT(int, ROW_NUMBER() OVER (ORDER BY q.id)), @agora)
+    FROM dbo.questoes q
+    JOIN dbo.atividades atividade ON atividade.id = q.atividade_id
+    JOIN dbo.assuntos a ON a.id = q.assunto_id
+    CROSS APPLY (
+        SELECT TOP (1) alternativa.letra
+        FROM (VALUES (N'A', q.alternativa_a), (N'B', q.alternativa_b),
+                     (N'C', q.alternativa_c), (N'D', q.alternativa_d)) AS alternativa(letra, texto)
+        WHERE alternativa.letra <> UPPER(q.resposta_correta)
+          AND NULLIF(TRIM(alternativa.texto), N'') IS NOT NULL
+        ORDER BY alternativa.letra
+    ) resposta
+    WHERE atividade.ativa = 1 AND q.ativa = 1 AND a.materia_id = @matematica AND a.nome = N'frações'
+    ORDER BY q.id;
 
-COMMIT;
+    IF @@ROWCOUNT <> 3
+        THROW 51141, N'A carga do histórico exige pelo menos três questões ativas de frações de Matemática com uma alternativa incorreta preenchida.', 1;
+END;

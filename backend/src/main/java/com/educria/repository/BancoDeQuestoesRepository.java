@@ -12,6 +12,21 @@ import java.util.Optional;
 /** Consultas do professor sobre as questões da sua matéria (inclui as desativadas). */
 public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> {
 
+    interface ContagemPorDificuldade {
+        Long getAssuntoId();
+        Integer getDificuldade();
+        long getTotal();
+    }
+
+    @Query("""
+            select a.id as assuntoId, q.dificuldade as dificuldade, count(q) as total
+            from Questao q join q.assunto a
+            where a.materia.id = :materiaId and
+            """ + QuestaoRepository.QUESTAO_ELEGIVEL + """
+            group by a.id, q.dificuldade
+            """)
+    List<ContagemPorDificuldade> contarElegiveis(@Param("materiaId") Long materiaId);
+
     @Query("""
             select q from Questao q
             join fetch q.assunto a

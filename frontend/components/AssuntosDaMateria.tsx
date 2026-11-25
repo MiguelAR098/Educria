@@ -69,7 +69,7 @@ export function AssuntosDaMateria({
         )}
 
         <form onSubmit={submeter} className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[14rem] flex-1 space-y-2">
+          <div className="min-w-0 flex-[1_1_14rem] space-y-2">
             <Label htmlFor="novo-assunto">Novo assunto</Label>
             <Input
               id="novo-assunto"
