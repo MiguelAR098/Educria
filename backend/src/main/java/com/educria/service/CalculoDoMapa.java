@@ -25,10 +25,6 @@ final class CalculoDoMapa {
 
     private CalculoDoMapa() {}
 
-    /**
-     * Cruza alunos e assuntos em uma matriz, preservando células ainda sem prática para a interface.
-     * A média por assunto considera apenas células praticadas. A lista de assuntos frágeis reúne até quatro das menores médias.
-     */
     static MapaDaTurma calcular(Long turmaId, String turmaNome, String materia, List<AssuntoSimples> assuntos,
                                 List<AlunoNoMapa> alunos, List<Registro> registros) {
         Map<String, Registro> registroDe = new HashMap<>();

@@ -12,48 +12,30 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-/** O Spring Data implementa esta interface para consultar cadastros e vínculos persistidos de alunos. */
 public interface AlunoRepository extends JpaRepository<Aluno, Long> {
-
-    interface Identificacao {
-        Long getId();
-        String getNome();
-    }
-
-    /** Projeção que estende a identificação com a matrícula, sem carregar a conta inteira. */
-    interface CadastroNaTurma extends Identificacao {
-        String getMatricula();
-    }
-
-    @Query("select a.id as id, a.nome as nome from Aluno a where a.turma.id = :turmaId")
-    List<Identificacao> identificarAlunosDaTurma(@Param("turmaId") Long turmaId);
 
     Optional<Aluno> findByEmail(String email);
 
     @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.turma WHERE a.id = :id")
     Optional<Aluno> findByIdWithTurma(Long id);
 
-    /** Serializa as operações concorrentes de estudo que usam o mesmo aluno como referência de bloqueio. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Aluno a where a.email = :email")
     Optional<Aluno> bloquearPorEmail(@Param("email") String email);
 
     List<Aluno> findByTurmaId(Long turmaId);
 
-    @Query("""
-            select a.id as id, a.nome as nome, a.matricula as matricula
-            from Aluno a where a.turma.id = :turmaId and (:alunoId is null or a.id = :alunoId)
-            order by a.nome
-            """)
-    List<CadastroNaTurma> cadastrosNaTurma(@Param("turmaId") Long turmaId, @Param("alunoId") Long alunoId);
+    long countByTurmaId(Long turmaId);
 
     Optional<Aluno> findByIdAndTurmaId(Long id, Long turmaId);
 
-    /**
-     * Atualiza diretamente a chave estrangeira somente se o vínculo informado ainda existir.
-     * A anotação sincroniza o contexto antes do SQL e descarta entidades carregadas após a atualização em lote.
-     */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = "update dbo.alunos set turma_id = null where usuario_id = :alunoId and turma_id = :turmaId", nativeQuery = true)
     int desvincularDaTurma(@Param("alunoId") Long alunoId, @Param("turmaId") Long turmaId);
+
+    @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.desempenhoAdaptativo WHERE a.turma.id = :turmaId ORDER BY a.nome")
+    List<Aluno> findByTurmaIdComDesempenho(@Param("turmaId") Long turmaId);
+
+    @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.desempenhoAdaptativo WHERE a.id = :alunoId AND a.turma.id = :turmaId")
+    Optional<Aluno> findByIdAndTurmaIdComDesempenho(@Param("alunoId") Long alunoId, @Param("turmaId") Long turmaId);
 }

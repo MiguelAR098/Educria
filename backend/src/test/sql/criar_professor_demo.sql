@@ -1,65 +1,33 @@
--- Primeira etapa da carga local. Prepara a turma e o vínculo do professor de Matemática.
-IF XACT_STATE() <> 1 OR OBJECT_ID(N'tempdb..#demo_turma', N'U') IS NULL
-    THROW 51010, N'Execute a carga pelo script scripts/sqlserver/carregar-demo.sh.', 1;
+-- Cria um professor de demonstração (e uma turma, se não houver nenhuma).
+-- Login: professor@educria.com / professor123
+-- Uso (com a aplicação já iniciada, para o Flyway ter criado as tabelas):
+--   psql -X -v ON_ERROR_STOP=1 -f backend/src/test/sql/criar_professor_demo.sql DATABASE
+\set ON_ERROR_STOP on
+BEGIN;
 
-DECLARE @email nvarchar(100) = N'professor@educria.com';
-DECLARE @nome nvarchar(100) = N'Professora Demo';
-DECLARE @senha nvarchar(255) = N'$2a$10$pDTii9Cwi6nFYZ2iKXnJU.lPmd7S639cak2NzsFwRs5EZDpX5i57S';
-DECLARE @codigo nvarchar(20) = N'DEMO-8A';
-DECLARE @nome_turma nvarchar(100) = N'8º A';
-DECLARE @ano_letivo int = 2026;
-DECLARE @materia_id bigint, @professor_id bigint, @turma_id bigint, @total_turmas bigint;
+INSERT INTO turmas (nome, codigo, ano_letivo)
+SELECT '8º A', '8A', 2026
+WHERE NOT EXISTS (SELECT 1 FROM turmas);
 
-SELECT @materia_id = id FROM dbo.materias WITH (HOLDLOCK) WHERE nome = N'Matemática';
-IF @materia_id IS NULL
-    THROW 51011, N'A matéria Matemática não está disponível no catálogo.', 1;
+INSERT INTO pontuacao_coletiva (turma_id)
+SELECT t.id FROM turmas t
+WHERE NOT EXISTS (SELECT 1 FROM pontuacao_coletiva p WHERE p.turma_id = t.id);
 
--- As consultas mantêm os bloqueios até o fim da transação. Isso protege as
--- chaves consultadas durante a checagem antes de decidir se deve criar a turma e a conta.
-SELECT @professor_id = id FROM dbo.usuarios WITH (UPDLOCK, HOLDLOCK) WHERE email = @email;
-SELECT @turma_id = MIN(id), @total_turmas = COUNT_BIG(*)
-FROM dbo.turmas WITH (UPDLOCK, HOLDLOCK)
-WHERE codigo = @codigo;
+INSERT INTO usuarios (email, nome, senha, perfil)
+VALUES ('professor@educria.com', 'Professora Demo',
+        '$2a$10$pDTii9Cwi6nFYZ2iKXnJU.lPmd7S639cak2NzsFwRs5EZDpX5i57S', 'PROFESSOR')
+ON CONFLICT (email) DO NOTHING;
 
-IF @total_turmas > 1 OR (@turma_id IS NOT NULL AND @professor_id IS NULL)
-    THROW 51012, N'Conflito com uma turma existente de código DEMO-8A.', 1;
+INSERT INTO professores (usuario_id, materia_id)
+SELECT u.id, m.id FROM usuarios u, materias m
+WHERE u.email = 'professor@educria.com' AND m.nome = 'Matemática'
+ON CONFLICT DO NOTHING;
 
-IF @professor_id IS NULL
-BEGIN
-    -- SCOPE_IDENTITY retorna o ID gerado neste escopo e serve de FK nas próximas inserções.
-    INSERT INTO dbo.turmas (nome, codigo, ano_letivo) VALUES (@nome_turma, @codigo, @ano_letivo);
-    SET @turma_id = CONVERT(bigint, SCOPE_IDENTITY());
+INSERT INTO professor_turmas (professor_id, turma_id)
+SELECT p.usuario_id, t.id
+FROM professores p
+JOIN usuarios u ON u.id = p.usuario_id AND u.email = 'professor@educria.com'
+CROSS JOIN turmas t
+ON CONFLICT DO NOTHING;
 
-    INSERT INTO dbo.pontuacao_coletiva (turma_id) VALUES (@turma_id);
-    INSERT INTO dbo.usuarios (email, nome, senha, perfil) VALUES (@email, @nome, @senha, N'PROFESSOR');
-    SET @professor_id = CONVERT(bigint, SCOPE_IDENTITY());
-
-    INSERT INTO dbo.professores (usuario_id, materia_id) VALUES (@professor_id, @materia_id);
-    INSERT INTO dbo.professor_turmas (professor_id, turma_id) VALUES (@professor_id, @turma_id);
-END
-ELSE
-BEGIN
-    -- Compara os dados exatos, inclusive em bancos com collation insensível a maiúsculas.
-    IF NOT EXISTS (
-        SELECT 1 FROM dbo.usuarios AS u
-        JOIN dbo.professores AS p WITH (HOLDLOCK) ON p.usuario_id = u.id
-        WHERE u.id = @professor_id AND u.ativo = 1 AND p.materia_id = @materia_id
-          AND CONVERT(varbinary(200), u.email) = CONVERT(varbinary(200), @email)
-          AND CONVERT(varbinary(200), u.nome) = CONVERT(varbinary(200), @nome)
-          AND CONVERT(varbinary(510), u.senha) = CONVERT(varbinary(510), @senha)
-          AND CONVERT(varbinary(40), u.perfil) = CONVERT(varbinary(40), N'PROFESSOR')
-    ) OR EXISTS (SELECT 1 FROM dbo.alunos WITH (HOLDLOCK) WHERE usuario_id = @professor_id)
-      OR EXISTS (SELECT 1 FROM dbo.admins WITH (HOLDLOCK) WHERE usuario_id = @professor_id)
-        THROW 51013, N'Conflito com a conta existente professor@educria.com.', 1;
-
-    IF NOT EXISTS (
-        SELECT 1 FROM dbo.turmas AS t
-        JOIN dbo.professor_turmas AS pt WITH (HOLDLOCK) ON pt.turma_id = t.id
-        WHERE t.id = @turma_id AND pt.professor_id = @professor_id AND t.ano_letivo = @ano_letivo
-          AND CONVERT(varbinary(40), t.codigo) = CONVERT(varbinary(40), @codigo)
-          AND CONVERT(varbinary(200), t.nome) = CONVERT(varbinary(200), @nome_turma)
-    )
-        THROW 51014, N'A conta professor@educria.com não está vinculada à turma de demonstração esperada (DEMO-8A).', 1;
-END;
-
-INSERT INTO #demo_turma (id) VALUES (@turma_id);
+COMMIT;

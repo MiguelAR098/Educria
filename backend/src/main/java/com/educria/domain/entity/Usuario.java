@@ -9,12 +9,6 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
-/**
- * Classe abstrata que reúne a identidade e os dados comuns a aluno, professor e administrador.
- * Cada conta é um objeto de uma dessas subclasses. Com a estratégia {@code JOINED}, o JPA carrega
- * a linha de {@code usuarios} junto da tabela do subtipo pela chave compartilhada.
- * Uma consulta pelo tipo {@code Usuario}, como a de login, pode retornar qualquer um desses subtipos.
- */
 @Entity
 @Table(name = "usuarios")
 @Inheritance(strategy = InheritanceType.JOINED)
@@ -25,7 +19,6 @@ import java.time.LocalDateTime;
 @SuperBuilder
 public abstract class Usuario {
 
-    // @Id mapeia a chave primária. IDENTITY delega a geração ao SQL Server no INSERT.
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,9 +30,8 @@ public abstract class Usuario {
     private String nome;
 
     @Column(nullable = false)
-    private String senha; // O valor persistido é o hash BCrypt.
+    private String senha; // já hasheada com BCrypt
 
-    // Persiste o nome do perfil em vez da posição do enum, que pode mudar com a ordem das constantes.
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Perfil perfil;
@@ -48,7 +40,6 @@ public abstract class Usuario {
     @Builder.Default
     private boolean ativo = true;
 
-    // O Hibernate preenche os horários de criação e atualização ao persistir a entidade.
     @CreationTimestamp
     @Column(name = "criado_em", updatable = false)
     private LocalDateTime criadoEm;

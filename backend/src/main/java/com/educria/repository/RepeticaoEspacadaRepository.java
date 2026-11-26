@@ -9,7 +9,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-/** Consulta a agenda por questão e mantém consultas por atividade para registros legados. */
 public interface RepeticaoEspacadaRepository extends JpaRepository<RepeticaoEspacada, Long> {
 
     interface DataQuestao {
@@ -19,7 +18,6 @@ public interface RepeticaoEspacadaRepository extends JpaRepository<RepeticaoEspa
 
     Optional<RepeticaoEspacada> findByAlunoIdAndQuestaoId(Long alunoId, Long questaoId);
 
-    /** Carrega as datas de um assunto em lote para que a seleção avalie a disponibilidade de cada questão. */
     @Query("""
             select r.questao.id as questaoId, r.proximaRevisao as data from RepeticaoEspacada r
             where r.aluno.id = :alunoId and r.questao.assunto.id = :assuntoId
@@ -29,7 +27,7 @@ public interface RepeticaoEspacadaRepository extends JpaRepository<RepeticaoEspa
     @Query("""
             select new com.educria.dto.RevisaoDoAluno(q.id, q.enunciado, q.assunto.nome, r.proximaRevisao, r.intervaloAtual)
             from RepeticaoEspacada r join r.questao q
-            where r.aluno.id = :alunoId and q.atividade.ativa = true and q.ativa = true and q.dificuldade is not null
+            where r.aluno.id = :alunoId and q.atividade.ativa = true and q.dificuldade is not null
             order by r.proximaRevisao, q.id
             """)
     List<RevisaoDoAluno> agenda(Long alunoId);

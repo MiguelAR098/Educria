@@ -13,19 +13,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.HashMap;
 import java.time.Clock;
 import java.util.Set;
 
-/**
- * Coordena o percurso de estudo entre o controlador, as entidades e os repositórios.
- * O Spring registra o serviço e injeta suas dependências pelo construtor gerado por {@code @RequiredArgsConstructor}.
- * As alterações de sessão do mesmo aluno são serializadas pelo bloqueio do titular dentro da transação.
- */
 @Service
 @RequiredArgsConstructor
 public class SessaoEstudoService {
@@ -47,13 +40,6 @@ public class SessaoEstudoService {
 
     public record Inicio(EstadoSessao estado, boolean criada) {}
 
-    /**
-     * Devolve a sessão aberta do titular com a situação já gravada ou cria uma sessão com a primeira questão elegível.
-     *
-     * @param email identidade do aluno autenticado
-     * @param assuntoId assunto escolhido ou {@code null} para pedir recomendação
-     * @return estado da sessão e indicação de que ela acabou de ser criada
-     */
     @Transactional
     public Inicio iniciar(String email, Long assuntoId) {
         Aluno aluno = bloquearAluno(email);
@@ -75,7 +61,7 @@ public class SessaoEstudoService {
 
         var primeira = selecionar(aluno, assunto.getId(), Set.of(), 0, hoje).orElseThrow(SessaoEstudoService::semQuestoes);
         var sessao = sessoes.save(new SessaoEstudo(aluno, assunto, primeira.questao().id(), primeira.revisao()));
-        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao(), null, 1, false, 0, 0), true);
+        return new Inicio(new EstadoSessao(sessao.resumo(), primeira.questao(), null, 1, false, 0), true);
     }
 
     @Transactional(readOnly = true)
@@ -88,7 +74,6 @@ public class SessaoEstudoService {
         return estado(buscar(email, id));
     }
 
-    /** Pausa, retoma ou encerra a sessão do titular. O encerramento exige resolver a fila de reaprendizagem. */
     @Transactional
     public EstadoSessao mudarSituacao(String email, Long id, SituacaoSessao destino) {
         bloquearAluno(email);
@@ -100,11 +85,6 @@ public class SessaoEstudoService {
         return estado(sessao);
     }
 
-    /**
-     * Apresenta o próximo passo autorizado ao titular. Uma repetição precisa ser respondida antes do avanço.
-     * Quando há margem, a seleção intercala questões distintas antes de voltar à pendência mais antiga.
-     * Se o banco se esgotou ou o limite de dez questões distintas foi atingido, a pendência pode voltar antes.
-     */
     @Transactional
     public EstadoSessao apresentar(String email, Long id, int posicao) {
         Aluno aluno = bloquearAluno(email);
@@ -130,19 +110,6 @@ public class SessaoEstudoService {
         return estado(sessao);
     }
 
-    /**
-     * Corrige a tentativa e mantém diagnóstico, pontos, histórico e agenda na mesma transação.
-     * Reenviar a mesma alternativa para um passo salvo devolve feedback a partir da resposta persistida
-     * e evita uma segunda gravação.
-     * Um passo ocupado por outro conteúdo ou uma tentativa fora da questão atual gera conflito.
-     *
-     * @param email identidade do aluno autenticado
-     * @param id sessão do titular
-     * @param questaoId questão já apresentada na sessão
-     * @param alternativa letra selecionada pelo aluno
-     * @param passo tentativa apresentada ou {@code null} no contrato legado
-     * @return feedback pedagógico e pontos registrados para a tentativa
-     */
     @Transactional
     public FeedbackResposta responder(String email, Long id, Long questaoId, String alternativa, Integer passo) {
         Aluno aluno = bloquearAluno(email);
@@ -171,26 +138,20 @@ public class SessaoEstudoService {
             throw new ApiException("Alternativa indisponível", HttpStatus.BAD_REQUEST);
         }
         boolean correta = questao.isRespostaCorreta(alternativa);
-        int pontos = correta ? PontuacaoIndividual.acerto(questao.getDificuldade(),
-                respostas.findFirstByAlunoIdAndQuestaoIdOrderByRespondidoEmDescIdDesc(aluno.getId(), questaoId)
-                        .map(RespostaAlunoRepository.UltimaTentativa::getCorreta)) : 0;
         Assunto assunto = sessao.getAssunto();
         var desempenho = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assunto.getId())
                 .orElseGet(() -> new DesempenhoPorAssunto(aluno, assunto));
         int nivelAnterior = desempenho.getNivelAtual();
-        // O diagnóstico vigente é por assunto. O registro global permanece como legado, sem uma segunda progressão.
-        // A reaprendizagem registra novas tentativas e pode conceder pontos, mas não altera os contadores ou o nível.
         if (!sessao.repetindo()) {
             desempenho.registrarResposta(correta);
             desempenhos.save(desempenho);
         }
         int nivelAtual = desempenho.getNivelAtual();
 
-        var respondidoEm = LocalDateTime.now(relogio).truncatedTo(ChronoUnit.MICROS);
         var salva = respostas.save(RespostaAluno.builder().passo(sessao.getPasso()).reaprender(!correta).aluno(aluno).sessao(sessao).questao(questao)
-                .respostaDada(alternativa).correta(correta).pontosIndividuais(pontos)
-                .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).respondidoEm(respondidoEm).build());
-        agenda.registrar(aluno, questao, correta, respondidoEm.toLocalDate());
+                .respostaDada(alternativa).correta(correta)
+                .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).build());
+        agenda.registrar(aluno, questao, correta);
         return feedback(salva, id);
     }
 
@@ -213,18 +174,16 @@ public class SessaoEstudoService {
                 respostas.findBySessaoIdAndPassoAndAlunoId(resumo.id(), sessao.getPasso(), alunoId)
                         .filter(resposta -> resposta.getQuestao().getId().equals(questaoId))
                         .map(resposta -> feedback(resposta, resumo.id())).orElse(null),
-                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id(), alunoId).size(),
-                respostas.pontosDaSessao(resumo.id(), alunoId));
+                sessao.getPasso(), sessao.repetindo(), respostas.fila(resumo.id(), alunoId).size());
     }
 
     private FeedbackResposta feedback(RespostaAluno resposta, Long sessaoId) {
-        // O limite pelo passo impede erros posteriores de avançarem a etapa da orientação em um reenvio antigo.
+        // O limite pelo passo da resposta conserva a dica original em reenvios antigos.
         long erros = resposta.isCorreta() ? 0 : respostas.contarErrosAtePasso(
                 resposta.getAluno().getId(), sessaoId, resposta.getQuestao().getId(), resposta.getPasso());
         return FeedbackPedagogico.montar(resposta, erros);
     }
 
-    /** Combina o nível do assunto e a agenda do aluno para selecionar uma questão que ainda não apareceu. */
     private Optional<Escolha> selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas, int revisoesUsadas, LocalDate hoje) {
         int nivel = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assuntoId)
                 .map(DesempenhoPorAssunto::getNivelAtual).orElse(NivelAdaptativo.MINIMO);

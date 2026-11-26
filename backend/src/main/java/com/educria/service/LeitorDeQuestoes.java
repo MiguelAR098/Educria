@@ -19,14 +19,6 @@ final class LeitorDeQuestoes {
 
     private LeitorDeQuestoes() {}
 
-    /**
-     * Converte um item em uma entrada de cadastro e verifica campos que, na importação,
-     * chegam como JSON livre. O mapa contém exclusivamente assuntos da matéria autorizada.
-     *
-     * @param item objeto de questão recebido no lote
-     * @param assuntoPorNome identificadores dos assuntos, indexados pelo nome normalizado
-     * @return entrada correspondente para validação e persistência pelo serviço
-     */
     static QuestaoRequest ler(JsonNode item, Map<String, Long> assuntoPorNome) {
         if (item == null || !item.isObject()) {
             throw new IllegalArgumentException("o item precisa ser um objeto entre chaves");
@@ -41,7 +33,7 @@ final class LeitorDeQuestoes {
         }
 
         JsonNode dificuldade = item.get("dificuldade");
-        if (dificuldade == null || !dificuldade.isIntegralNumber() || !dificuldade.canConvertToInt()
+        if (dificuldade == null || !dificuldade.isIntegralNumber()
                 || dificuldade.asInt() < 1 || dificuldade.asInt() > 10) {
             throw new IllegalArgumentException("dificuldade precisa ser um número inteiro de 1 a 10");
         }
@@ -83,8 +75,7 @@ final class LeitorDeQuestoes {
     }
 
     private static String letraCorreta(JsonNode correta) {
-        if (correta != null && correta.isIntegralNumber() && correta.canConvertToInt()
-                && correta.asInt() >= 0 && correta.asInt() <= 3) {
+        if (correta != null && correta.isIntegralNumber() && correta.asInt() >= 0 && correta.asInt() <= 3) {
             return String.valueOf(LETRAS.charAt(correta.asInt()));
         }
         if (correta != null && correta.isTextual()) {

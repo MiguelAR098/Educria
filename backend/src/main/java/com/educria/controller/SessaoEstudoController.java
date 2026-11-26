@@ -12,17 +12,12 @@ import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 import java.util.List;
 
-/**
- * Expõe o ciclo de uma sessão. O Spring fornece o {@link Principal} da requisição autenticada.
- * Os identificadores do caminho selecionam o recurso, cuja titularidade é validada pelo serviço.
- */
 @RestController
 @RequestMapping("/api/aluno/sessoes")
 @RequiredArgsConstructor
 public class SessaoEstudoController {
     private final SessaoEstudoService service;
 
-    /** Abre uma sessão ou devolve a sessão já aberta, distinguindo os dois casos pelo status HTTP. */
     @PostMapping
     public ResponseEntity<EstadoSessao> iniciar(Principal titular,
                                                 @Valid @RequestBody(required = false) IniciarSessaoRequest pedido) {
@@ -40,7 +35,6 @@ public class SessaoEstudoController {
         return service.consultar(titular.getName(), id);
     }
 
-    /** Solicita a apresentação da posição indicada. A ordem e a transição são decididas no serviço. */
     @PutMapping("/{id}/questoes/{posicao}")
     public EstadoSessao apresentar(Principal titular, @PathVariable Long id, @PathVariable int posicao) {
         return service.apresentar(titular.getName(), id, posicao);

@@ -1,7 +1,7 @@
 package com.educria.dto;
 
 /**
- * Visão completa para o professor da matéria, com gabarito e explicação.
+ * Visão completa da questão para o professor (inclui o gabarito e a explicação).
  * taxaAcerto em % (0 a 100), nula se ninguém respondeu ainda.
  */
 public record QuestaoDoProfessor(Long id, Long assuntoId, String assunto, Integer dificuldade, String enunciado,

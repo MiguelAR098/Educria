@@ -40,7 +40,6 @@ public class Recado {
     @Column(name = "criado_em", updatable = false)
     private LocalDateTime criadoEm;
 
-    /** Uma data de leitura nula significa que o recado ainda está pendente para o destinatário. */
     @Column(name = "lido_em")
     private LocalDateTime lidoEm;
 }

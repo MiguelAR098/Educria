@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
-/** Especialização de {@link Usuario} associada a uma matéria e às turmas em que leciona. */
 @Entity
 @Table(name = "professores")
 @PrimaryKeyJoinColumn(name = "usuario_id")
@@ -28,7 +27,6 @@ public class Professor extends Usuario {
     /**
      * Turmas em que o professor leciona.
      * O professor só enxerga alunos e dados dessas turmas.
-     * A tabela de junção guarda os pares professor–turma, permitindo vários vínculos de cada lado.
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -39,7 +37,6 @@ public class Professor extends Usuario {
     @Builder.Default
     private Set<Turma> turmas = new HashSet<>();
 
-    /** Procura uma turma entre os vínculos deste professor e retorna vazio quando ela está fora do escopo. */
     public Optional<Turma> turmaPorId(Long turmaId) {
         return turmas.stream().filter(t -> t.getId().equals(turmaId)).findFirst();
     }

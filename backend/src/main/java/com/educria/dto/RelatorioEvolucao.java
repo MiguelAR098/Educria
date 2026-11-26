@@ -4,7 +4,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Relatório de um aluno com janela inclusiva, totais, série diária e detalhamento por assunto. */
 public record RelatorioEvolucao(LocalDate dataInicial, LocalDate dataFinal, Resumo resumo,
                                 List<Dia> evolucaoDiaria, List<Assunto> assuntos) {
     /**

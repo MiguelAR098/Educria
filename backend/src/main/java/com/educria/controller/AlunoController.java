@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/** Consultas do painel do aluno sobre catálogo, revisões, diagnóstico próprio e pontuação da turma. */
 @RestController
 @RequestMapping("/api/aluno")
 @RequiredArgsConstructor
@@ -26,7 +25,6 @@ public class AlunoController {
 
     private final AgendaRevisoesService revisoes;
 
-    /** Usa a identidade fornecida por {@code @AuthenticationPrincipal} para buscar o ID do titular. */
     private Long getAlunoId(UserDetails userDetails) {
         return alunoRepository.findByEmail(userDetails.getUsername())
                 .orElseThrow()
@@ -39,8 +37,8 @@ public class AlunoController {
     }
 
     @GetMapping("/materias")
-    public List<MateriaResumo> materias(@AuthenticationPrincipal UserDetails usuario) {
-        return alunoService.listarMaterias(getAlunoId(usuario));
+    public List<MateriaResumo> materias() {
+        return alunoService.listarMaterias();
     }
 
     @GetMapping("/materias/{materiaId}/assuntos")

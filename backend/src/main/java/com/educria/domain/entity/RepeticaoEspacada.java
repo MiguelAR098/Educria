@@ -9,9 +9,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Agenda de repetição por aluno e questão. O vínculo por atividade representa registros legados.
- * O banco exige um único tipo de alvo por registro e uma agenda por aluno para cada alvo.
- * No fluxo atual, o serviço agenda acertos e remove a revisão pendente após um erro.
+ * Controle de repetição espaçada por aluno e questão. Registros legados preservam a atividade.
+ * Progressão forçada: 1d → 3d → 7d → 16d → 35d → 70d no acerto.
+ * A agenda por questão só recebe acertos. A API legada por atividade conserva suas regras.
  */
 @Entity
 @Table(name = "repeticao_espacada",
@@ -56,10 +56,6 @@ public class RepeticaoEspacada {
 
     // ===================== REGRAS DE NEGÓCIO =====================
 
-    /**
-     * Agenda a partir da data da resposta. O primeiro acerto usa um dia. Acertos seguintes avançam
-     * pelos intervalos de 3, 7, 16, 35 e 70 dias, mantendo 70 dias no teto.
-     */
     public void registrarAcerto(LocalDate hoje) {
         agendar(ultimaRevisao != null ? intervaloAtual.proximo() : IntervaloRepeticao.D1, hoje);
     }
@@ -68,7 +64,6 @@ public class RepeticaoEspacada {
         agendar(intervaloAtual.proximo(), LocalDate.now());
     }
 
-    /** Reinicia em um dia para o fluxo legado por atividade. */
     public void registrarErro() {
         agendar(IntervaloRepeticao.D1, LocalDate.now());
     }

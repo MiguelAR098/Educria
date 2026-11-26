@@ -12,16 +12,10 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Projeta o histórico privado com SQL nativo. Os campos usados como parâmetros mantêm o filtro pelo
- * titular nas consultas, e as agregações evitam carregar uma entidade por tentativa.
- */
 @Repository
 @RequiredArgsConstructor
 public class HistoricoSessaoRepository {
     private final JdbcClient jdbc;
-
-    public record PontuacaoAcumulada(long noAssunto, long naMateria) {}
 
     private static final String ALVO = """
             with alvo as (
@@ -32,7 +26,7 @@ public class HistoricoSessaoRepository {
     private static final String INDICADORES = """
             ), tentativas_alvo as (
                 select r.id, r.sessao_id, r.questao_id, cast(r.correta as integer) as correta,
-                       r.nivel_anterior, r.nivel_atual, r.pontos_individuais,
+                       r.nivel_anterior, r.nivel_atual,
                        row_number() over (partition by r.sessao_id order by r.passo) as primeira,
                        row_number() over (partition by r.sessao_id order by r.passo desc) as ultima,
                        case when
@@ -49,10 +43,7 @@ public class HistoricoSessaoRepository {
                    count(case when r.correta = 0 then 1 end) as tentativas_incorretas,
                    count(case when r.erro = 1 then 1 end) as erros,
                    max(case when r.primeira = 1 then r.nivel_anterior end) as antes,
-                   max(case when r.ultima = 1 then r.nivel_atual end) as depois,
-                   sum(cast(r.pontos_individuais as bigint)) as pontos_individuais,
-                   case when count(r.pontos_individuais) > 0 and count(r.pontos_individuais) = count(r.id)
-                        then 1 else 0 end as pontuacao_completa
+                   max(case when r.ultima = 1 then r.nivel_atual end) as depois
             from sessoes_estudo s
             join alvo p on p.id = s.id
             join assuntos a on a.id = s.assunto_id
@@ -64,10 +55,8 @@ public class HistoricoSessaoRepository {
             rs.getLong("id"), rs.getString("assunto"), SituacaoSessao.valueOf(rs.getString("situacao")),
             rs.getTimestamp("iniciada_em").toInstant(), rs.getInt("apresentadas"), rs.getInt("respondidas"),
             rs.getLong("tentativas"), rs.getLong("acertos"), rs.getLong("tentativas_incorretas"), rs.getLong("erros"),
-            rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class),
-            rs.getObject("pontos_individuais", Long.class), rs.getBoolean("pontuacao_completa"));
+            rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class));
 
-    /** Seleciona os IDs da página antes de agregar as tentativas. O cursor é exclusivo e segue a ordem decrescente. */
     public List<Indicadores> listar(String email, Long antesDe, int limite) {
         String filtro = antesDe == null ? "" : " and s.id < :antesDe";
         var consulta = jdbc.sql(ALVO + filtro + " order by s.id desc offset 0 rows fetch next :limite rows only\n"
@@ -95,25 +84,6 @@ public class HistoricoSessaoRepository {
                 """ + INDICADORES).param("email", email).param("id", id).query(LER).optional();
     }
 
-    /** Usa o assunto da sessão histórica para atribuir pontos, mesmo se a questão mudar de assunto depois. */
-    public PontuacaoAcumulada pontuacaoAcumulada(String email, long id) {
-        return jdbc.sql("""
-                select coalesce(sum(case when historica.assunto_id = atual.assunto_id
-                           then cast(r.pontos_individuais as bigint) end), 0) as no_assunto,
-                       coalesce(sum(cast(r.pontos_individuais as bigint)), 0) as na_materia
-                from sessoes_estudo atual
-                join usuarios u on u.id = atual.aluno_id
-                join assuntos alvo on alvo.id = atual.assunto_id
-                join respostas_aluno r on r.aluno_id = atual.aluno_id and r.pontos_individuais is not null
-                join sessoes_estudo historica on historica.id = r.sessao_id and historica.aluno_id = r.aluno_id
-                join assuntos a on a.id = historica.assunto_id and a.materia_id = alvo.materia_id
-                where atual.id = :id and u.email = :email
-                """).param("id", id).param("email", email)
-                .query((rs, i) -> new PontuacaoAcumulada(rs.getLong("no_assunto"), rs.getLong("na_materia")))
-                .single();
-    }
-
-    /** Preserva questões apresentadas sem resposta e lista as tentativas múltiplas pela ordem dos passos. */
     public List<Item> questoes(String email, long id) {
         return jdbc.sql("""
                 select sq.indice + 1 as numero, q.enunciado, r.resposta_dada as alternativa, r.correta, r.passo
@@ -135,7 +105,7 @@ public class HistoricoSessaoRepository {
                 join questoes q on q.id = r.questao_id
                 join atividades a on a.id = q.atividade_id
                 join repeticao_espacada rep on rep.questao_id = q.id and rep.aluno_id = s.aluno_id
-                where u.email = :email and s.id = :id and a.ativa = 1 and q.ativa = 1
+                where u.email = :email and s.id = :id and cast(a.ativa as integer) = 1
                   and q.assunto_id is not null and q.dificuldade is not null
                 order by rep.proxima_revisao, q.id
                 """).param("email", email).param("id", id).query(Revisao.class).list();

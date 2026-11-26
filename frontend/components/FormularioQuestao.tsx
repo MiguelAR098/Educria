@@ -18,7 +18,6 @@ export function FormularioQuestao({
   assuntos,
   inicial,
   assuntoPadrao,
-  dificuldadePadrao,
   enviando,
   rotuloBotao,
   onSalvar,
@@ -27,14 +26,13 @@ export function FormularioQuestao({
   assuntos: AssuntoSimples[];
   inicial?: QuestaoDoProfessor;
   assuntoPadrao?: number;
-  dificuldadePadrao?: number;
   enviando: boolean;
   rotuloBotao: string;
   onSalvar: (payload: QuestaoPayload) => void;
   onCancelar?: () => void;
 }) {
   const [assuntoId, setAssuntoId] = useState<number>(inicial?.assuntoId ?? assuntoPadrao ?? assuntos[0]?.id ?? 0);
-  const [dificuldade, setDificuldade] = useState<number>(inicial?.dificuldade ?? dificuldadePadrao ?? 1);
+  const [dificuldade, setDificuldade] = useState<number>(inicial?.dificuldade ?? 1);
   const [enunciado, setEnunciado] = useState(inicial?.enunciado ?? "");
   const [alternativas, setAlternativas] = useState<string[]>([
     inicial?.alternativaA ?? "",

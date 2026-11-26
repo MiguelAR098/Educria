@@ -14,7 +14,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Assina e verifica os JWTs usados pelo filtro de autenticação. A chave é fornecida pela configuração. */
 @Service
 public class JwtService {
 
@@ -24,13 +23,6 @@ public class JwtService {
     @Value("${educria.jwt.expiration-ms}")
     private long expirationMs;
 
-    /**
-     * Extrai o e-mail após a biblioteca verificar a assinatura e a validade do token.
-     * O titular e a data de vencimento também precisam estar presentes.
-     *
-     * @param token conteúdo do cabeçalho de autenticação após o prefixo Bearer
-     * @return e-mail registrado no campo de titular do JWT
-     */
     public String extractUsername(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getSignInKey())
@@ -44,10 +36,6 @@ public class JwtService {
         return subject;
     }
 
-    /**
-     * Emite um token assinado para uma conta já autenticada ou recém-criada pelo serviço de cadastro.
-     * Os campos do JWT podem ser lidos pelo cliente. Inclui somente os dados selecionados da conta.
-     */
     public String generateToken(Usuario usuario) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("perfil", usuario.getPerfil().name());

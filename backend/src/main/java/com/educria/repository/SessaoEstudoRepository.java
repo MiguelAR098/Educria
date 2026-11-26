@@ -12,9 +12,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-/** Persiste a sessão e consulta a sequência apresentada ao titular. */
 public interface SessaoEstudoRepository extends Repository<SessaoEstudo, Long> {
-    /** O JPQL usa a coleção da entidade para verificar se a questão já pertence à sessão autorizada pelo serviço. */
     @Query("""
             select q from SessaoEstudo s, Questao q where s.id = :sessaoId and q.id = :questaoId
             and q.id member of s.apresentadas
@@ -24,7 +22,6 @@ public interface SessaoEstudoRepository extends Repository<SessaoEstudo, Long> {
     SessaoEstudo save(SessaoEstudo sessao);
     Optional<SessaoEstudo> findByAlunoIdAndSituacaoNot(Long alunoId, SituacaoSessao situacao);
 
-    /** Busca a sessão pelo ID e pelo titular e carrega seus itens na mesma consulta. */
     @Query("""
             select s from SessaoEstudo s left join fetch s.apresentadas
             where s.id = :id and s.aluno.email = :email
@@ -38,7 +35,6 @@ public interface SessaoEstudoRepository extends Repository<SessaoEstudo, Long> {
             """)
     List<ResumoSessao> listarDoAluno(@Param("email") String email);
 
-    /** Recupera a questão já apresentada, inclusive se a disponibilidade dela mudou no banco. */
     @Query("""
             select new com.educria.dto.QuestaoParaAluno(q.id, q.assunto.id, q.dificuldade, q.enunciado,
                        q.alternativaA, q.alternativaB, q.alternativaC, q.alternativaD)

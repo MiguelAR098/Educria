@@ -8,9 +8,12 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 /**
- * Diagnóstico global legado de um estudante. Serve de apoio à exibição privada quando ainda não
- * existe prática por assunto. O fluxo de sessões atual mantém o diagnóstico em {@link DesempenhoPorAssunto}.
- * A pontuação coletiva tem persistência própria em {@link PontuacaoColetiva}.
+ * Diagnóstico individual PRIVADO.
+ * Nível dinâmico de 1 a 10.
+ * Regra de proteção: só rebaixa no 2º erro consecutivo.
+ *
+ * IMPORTANTE: Esta entidade NÃO possui relacionamento
+ * com PontuacaoColetiva ou ranking público.
  */
 @Entity
 @Table(name = "desempenho_adaptativo")
@@ -51,7 +54,12 @@ public class DesempenhoAdaptativo {
 
     // ===================== REGRAS DE NEGÓCIO ENCAPSULADAS =====================
 
-    /** Aplica a regra compartilhada de {@link NivelAdaptativo} e acumula o resultado neste diagnóstico. */
+    /**
+     * Registra o resultado de uma resposta.
+     * - Acerto: zera erros consecutivos e sobe de nível (máx 10)
+     * - Erro: incrementa erros consecutivos.
+     *          Só rebaixa no 2º erro consecutivo (proteção do 1º erro).
+     */
     public void registrarResposta(boolean acertou) {
         NivelAdaptativo proximo = new NivelAdaptativo(nivelAtual, errosConsecutivos).aposResposta(acertou);
         nivelAtual = proximo.nivel();

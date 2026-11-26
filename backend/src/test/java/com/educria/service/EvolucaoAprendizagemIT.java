@@ -2,21 +2,14 @@ package com.educria.service;
 
 import com.educria.domain.entity.Admin;
 import com.educria.domain.entity.Aluno;
-import com.educria.domain.entity.Materia;
-import com.educria.domain.entity.Professor;
 import com.educria.domain.entity.Usuario;
 import com.educria.domain.enums.Perfil;
-import com.educria.dto.AssuntoDoAluno;
-import com.educria.dto.DetalheDoAluno;
-import com.educria.dto.MateriaResumo;
 import com.educria.dto.RelatorioEvolucao;
 import com.educria.dto.RelatorioEvolucao.Dia;
 import com.educria.dto.ResultadoSessao;
 import com.educria.repository.UsuarioRepository;
 import com.educria.security.JwtService;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +33,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -73,38 +65,6 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     @Autowired private ObjectMapper json;
     @Autowired private JdbcTemplate db;
     @Autowired private JwtService jwt;
-    @Autowired private EntityManager entidades;
-
-    @Test
-    void recortaEvolucaoDoProfessorSemAlterarEvolucaoDoTitular() throws Exception {
-        var titular = aluno();
-        long turma = id("insert dbo.turmas(nome) output inserted.id values (N'Turma de teste')");
-        db.update("update dbo.alunos set turma_id=? where usuario_id=?", turma, titular.id());
-        long materia = materia();
-        long assuntoProprio = assunto(materia, "Frações");
-        long assuntoDeOutraMateria = assunto("Leitura");
-        var professor = usuario(Professor.builder().perfil(Perfil.PROFESSOR)
-                .materia(entidades.getReference(Materia.class, materia)));
-        db.update("insert dbo.professor_turmas(professor_id,turma_id) values (?,?)", professor.id(), turma);
-        long propria = sessao(titular, assuntoProprio, "2026-12-20T12:00:00Z");
-        long outra = sessao(titular, assuntoDeOutraMateria, "2026-12-21T12:00:00Z");
-        long questaoPropria = questao(assuntoProprio);
-        long questaoDeOutraMateria = questao(assuntoDeOutraMateria);
-        apresentar(propria, questaoPropria);
-        apresentar(outra, questaoDeOutraMateria);
-        responder(titular, propria, questaoPropria, 1, true, "2026-12-20T09:01:00", 1, 2);
-        responder(titular, outra, questaoDeOutraMateria, 1, false, "2026-12-21T09:01:00", 1, 1);
-        db.update("update dbo.questoes set assunto_id=? where id=?", assuntoDeOutraMateria, questaoPropria);
-        entidades.clear();
-
-        var detalhe = lerJson(get("/api/professor/turmas/{turma}/alunos/{aluno}", turma, titular.id()),
-                professor, DetalheDoAluno.class);
-        var evolucao = detalhe.evolucao();
-        assertTotais(evolucao, 1, 1, 1, 0, 0, 1, 0, "100.00");
-        assertEquals(1, evolucao.evolucaoDiaria().stream().mapToLong(Dia::tentativas).sum());
-        assertEquals(List.of(assuntoProprio), evolucao.assuntos().stream().map(RelatorioEvolucao.Assunto::assuntoId).toList());
-        assertEquals(2, ler(get(ROTA), titular).resumo().tentativas());
-    }
 
     @Test
     void alunoSemSessoesRecebeTrintaDiasZerados() throws Exception {
@@ -247,93 +207,6 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     }
 
     @Test
-    void totalizaPontosPrivadosPeloAssuntoDaSessaoEComparaSomenteOMesmoAssunto() throws Exception {
-        var titular = aluno();
-        var outro = aluno();
-        db.update("insert into desempenho_adaptativo(aluno_id) values (?), (?)", titular.id(), outro.id());
-        long materia = materia();
-        long divisao = assunto(materia, "Divisão");
-        long multiplicacao = assunto(materia, "Multiplicação");
-        long outraMateria = materia();
-        long divisaoOutraMateria = assunto(outraMateria, "Divisão");
-        long questao = questao(divisao);
-        long questaoDeMultiplicacao = questao(multiplicacao);
-        long legada = sessao(titular, divisao, "2026-12-05T12:00:00Z");
-        long anterior = sessao(titular, divisao, "2026-12-06T12:00:00Z");
-        long deOutroAssunto = sessao(titular, multiplicacao, "2026-12-07T12:00:00Z");
-        long atual = sessao(titular, divisao, "2026-12-08T12:00:00Z");
-        long mista = sessao(titular, divisao, "2026-12-08T13:00:00Z");
-        long interrompida = sessao(titular, divisao, "2026-12-09T12:00:00Z");
-        long alheia = sessao(outro, divisao, "2026-12-10T12:00:00Z");
-        for (long id : new long[] {legada, anterior, atual, mista, interrompida, alheia}) apresentar(id, questao);
-        apresentar(deOutroAssunto, questaoDeMultiplicacao);
-        responder(titular, legada, questao, 1, true, "2026-12-05T09:01:00", null, null);
-        responder(titular, anterior, questao, 1, true, "2026-12-06T09:01:00", 5, 5);
-        responder(titular, deOutroAssunto, questaoDeMultiplicacao, 1, true, "2026-12-07T09:01:00", 1, 1);
-        responder(titular, atual, questao, 1, true, "2026-12-08T09:01:00", 5, 5);
-        responder(titular, mista, questao, 1, true, "2026-12-08T10:01:00", null, null);
-        responder(titular, mista, questao, 2, false, "2026-12-08T10:02:00", 5, 5);
-        responder(titular, interrompida, questao, 1, false, "2026-12-09T09:01:00", 5, 5);
-        responder(outro, alheia, questao, 1, true, "2026-12-10T09:01:00", 3, 4);
-        pontosDaResposta(anterior, 50);
-        pontosDaResposta(deOutroAssunto, 10);
-        pontosDaResposta(atual, 15);
-        db.update("update respostas_aluno set pontos_individuais = 0 where sessao_id = ? and passo = 2", mista);
-        pontosDaResposta(interrompida, 0);
-        pontosDaResposta(alheia, 100);
-        db.update("update sessoes_estudo set situacao = 'INTERROMPIDA' where id = ?", interrompida);
-        db.update("update questoes set assunto_id = ?, dificuldade = 10 where id = ?", divisaoOutraMateria, questao);
-
-        var resultadoAtual = resultado(atual, titular);
-        assertEquals(15L, resultadoAtual.sessao().pontosIndividuais());
-        assertTrue(resultadoAtual.sessao().pontuacaoCompleta());
-        assertEquals(1L, resultadoAtual.sessao().acertos());
-        assertEquals(anterior, resultadoAtual.anterior().id());
-        assertEquals(50L, resultadoAtual.anterior().pontosIndividuais());
-        assertTrue(resultadoAtual.anterior().pontuacaoCompleta());
-        assertEquals(65L, resultadoAtual.pontosIndividuaisNoAssunto());
-        assertEquals(75L, resultadoAtual.pontosIndividuaisNaMateria());
-        var indicadoresInterrompida = resultado(interrompida, titular).sessao();
-        assertEquals(0L, indicadoresInterrompida.pontosIndividuais());
-        assertTrue(indicadoresInterrompida.pontuacaoCompleta());
-        var indicadoresLegada = resultado(legada, titular).sessao();
-        assertNull(indicadoresLegada.pontosIndividuais());
-        assertFalse(indicadoresLegada.pontuacaoCompleta());
-        var resultadoMista = resultado(mista, titular);
-        assertEquals(0L, resultadoMista.sessao().pontosIndividuais());
-        assertFalse(resultadoMista.sessao().pontuacaoCompleta());
-        assertTrue(resultadoMista.anterior().pontuacaoCompleta());
-        assertNull(resultado(anterior, titular).anterior().pontosIndividuais());
-
-        var historico = lerJson(get("/api/aluno/sessoes/historico"), titular, ResultadoSessao.Historico.class);
-        assertEquals(Arrays.asList(0L, 0L, 15L, 10L, 50L, null), historico.sessoes().stream()
-                .map(ResultadoSessao.Indicadores::pontosIndividuais).toList());
-
-        var catalogo = Arrays.asList(lerJson(get("/api/aluno/materias").param("alunoId", Long.toString(outro.id())),
-                titular, MateriaResumo[].class));
-        var materiaDaSessao = catalogo.stream().filter(m -> m.id() == materia).findFirst().orElseThrow();
-        assertEquals(2L, materiaDaSessao.totalAssuntos());
-        assertEquals(75L, materiaDaSessao.pontosIndividuais());
-        assertEquals(0L, catalogo.stream().filter(m -> m.id() == outraMateria).findFirst().orElseThrow().pontosIndividuais());
-
-        var assuntos = lerJson(get("/api/aluno/materias/{materiaId}/assuntos", materia)
-                .param("alunoId", Long.toString(outro.id())), titular, AssuntoDoAluno[].class);
-        assertArrayEquals(new AssuntoDoAluno[] {new AssuntoDoAluno(divisao, "Divisão", 1, 65),
-                new AssuntoDoAluno(multiplicacao, "Multiplicação", 1, 10)}, assuntos);
-        var assuntosDeOutro = lerJson(get("/api/aluno/materias/{materiaId}/assuntos", materia), outro, AssuntoDoAluno[].class);
-        assertEquals(100L, assuntosDeOutro[0].pontosIndividuais());
-        assertEquals(0L, assuntosDeOutro[1].pontosIndividuais());
-        var desempenho = lerJson(get("/api/aluno/desempenho").param("alunoId", Long.toString(outro.id())),
-                titular, JsonNode.class);
-        assertEquals(75L, desempenho.get("pontosIndividuais").longValue());
-        assertEquals(1, desempenho.get("nivelAtual").intValue());
-        var desempenhoDoOutro = lerJson(get("/api/aluno/desempenho"), outro, JsonNode.class);
-        assertEquals(100L, desempenhoDoOutro.get("pontosIndividuais").longValue());
-        mvc.perform(autenticar(get("/api/aluno/sessoes/{id}/resultado", alheia), titular))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
     void validaFiltroEDevolveResumoVazioParaAssuntoExistenteSemAtividade() throws Exception {
         var titular = aluno();
         for (String invalido : List.of("", "abc", "0", "-1", "9223372036854775808")) {
@@ -356,12 +229,9 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     }
 
     private RelatorioEvolucao ler(MockHttpServletRequestBuilder pedido, Identidade titular) throws Exception {
-        return lerJson(pedido, titular, RelatorioEvolucao.class);
-    }
-
-    private <T> T lerJson(MockHttpServletRequestBuilder pedido, Identidade titular, Class<T> tipo) throws Exception {
-        return json.readValue(mvc.perform(autenticar(pedido, titular)).andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsByteArray(), tipo);
+        byte[] resposta = mvc.perform(autenticar(pedido, titular)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        return json.readValue(resposta, RelatorioEvolucao.class);
     }
 
     private MockHttpServletRequestBuilder autenticar(MockHttpServletRequestBuilder pedido, Identidade titular) {
@@ -369,7 +239,8 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     }
 
     private ResultadoSessao resultado(long sessao, Identidade titular) throws Exception {
-        return lerJson(get("/api/aluno/sessoes/{id}/resultado", sessao), titular, ResultadoSessao.class);
+        return json.readValue(mvc.perform(autenticar(get("/api/aluno/sessoes/{id}/resultado", sessao), titular))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray(), ResultadoSessao.class);
     }
 
     private void assertTotais(RelatorioEvolucao relatorio, long sessoes, long tentativas, long acertos, long incorretas, long erros,
@@ -389,14 +260,7 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     }
 
     private long assunto(String nome) {
-        return assunto(materia(), nome);
-    }
-
-    private long materia() {
-        return id("insert into materias(nome) output inserted.id values (?)", UUID.randomUUID().toString());
-    }
-
-    private long assunto(long materia, String nome) {
+        long materia = id("insert into materias(nome) output inserted.id values (?)", UUID.randomUUID().toString());
         return id("insert into assuntos(materia_id, nome) output inserted.id values (?, ?)", materia, nome);
     }
 
@@ -432,10 +296,6 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
                 values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, titular.id(), sessao, questao, passo, correta ? "A" : "B", correta,
                 sessao != null && !correta && nivelAnterior != null, LocalDateTime.parse(data), nivelAnterior, nivelAtual);
-    }
-
-    private void pontosDaResposta(long sessao, int pontos) {
-        db.update("update respostas_aluno set pontos_individuais = ? where sessao_id = ? and passo = 1", pontos, sessao);
     }
 
     private long id(String sql, Object... params) {

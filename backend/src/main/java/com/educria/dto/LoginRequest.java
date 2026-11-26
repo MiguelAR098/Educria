@@ -3,9 +3,7 @@ package com.educria.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import lombok.ToString;
 
-/** Corpo do login. O controller aciona as restrições de Bean Validation com {@code @Valid}. */
 @Data
 public class LoginRequest {
 
@@ -14,6 +12,5 @@ public class LoginRequest {
     private String email;
 
     @NotBlank(message = "Senha é obrigatória")
-    @ToString.Exclude
     private String senha;
 }

@@ -40,21 +40,6 @@ export interface DesempenhoAluno {
   nivelMaximo?: boolean;
   totalAcertos: number;
   totalErros: number;
-  pontosIndividuais: number;
-}
-
-export interface MateriaDoAluno {
-  id: number;
-  nome: string;
-  totalAssuntos: number;
-  pontosIndividuais: number;
-}
-
-export interface AssuntoDoAluno {
-  id: number;
-  nome: string;
-  nivelAtual: number;
-  pontosIndividuais: number;
 }
 
 export interface PontosTurma {
@@ -207,12 +192,6 @@ export interface BancoDeQuestoes {
   materia: string;
   assuntos: AssuntoSimples[];
   questoes: QuestaoDoProfessor[];
-}
-
-export interface CoberturaBancoQuestoes {
-  assuntos: (AssuntoSimples & { contagens: number[]; total: number })[];
-  total: number;
-  combinacoesVazias: number;
 }
 
 export interface QuestaoPayload {

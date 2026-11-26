@@ -7,13 +7,10 @@ import { AxiosError } from "axios";
 import { toast } from "sonner";
 import { ArrowLeft, BookOpen, FileJson, Plus } from "lucide-react";
 import { api } from "@/lib/api";
-import { useAuthStore } from "@/lib/auth-store";
 import { ErroApi, mensagemDeErro } from "@/lib/erros";
-import { BancoDeQuestoes, CoberturaBancoQuestoes, QuestaoDoProfessor, QuestaoPayload } from "@/lib/types";
+import { BancoDeQuestoes, QuestaoDoProfessor, QuestaoPayload } from "@/lib/types";
 import { AuthGuard } from "@/components/AuthGuard";
 import { AssuntosDaMateria } from "@/components/AssuntosDaMateria";
-import { CoberturaDoBanco } from "@/components/CoberturaDoBanco";
-import { EstadoConsulta } from "@/components/EstadoConsulta";
 import { FormularioQuestao } from "@/components/FormularioQuestao";
 import { ImportarExportarQuestoes } from "@/components/ImportarExportarQuestoes";
 import { Navbar } from "@/components/Navbar";
@@ -23,8 +20,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const LETRAS = ["A", "B", "C", "D"] as const;
-const dificuldades = Array.from({ length: 10 }, (_, indice) => indice + 1);
-const campoFiltro = "min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-indigo-700";
 
 function textoDaAlternativa(q: QuestaoDoProfessor, letra: (typeof LETRAS)[number]): string {
   return { A: q.alternativaA, B: q.alternativaB, C: q.alternativaC, D: q.alternativaD }[letra];
@@ -32,33 +27,22 @@ function textoDaAlternativa(q: QuestaoDoProfessor, letra: (typeof LETRAS)[number
 
 export default function BancoDeQuestoesPage() {
   const queryClient = useQueryClient();
-  const professor = useAuthStore(({ user, token, _hasHydrated }) =>
-    _hasHydrated && token && user?.role === "PROFESSOR" ? user.email : null);
-  const [assuntoId, setAssuntoId] = useState<number | null>(null);
-  const [dificuldade, setDificuldade] = useState<number | null>(null);
+  const [filtro, setFiltro] = useState<string>("");
   const [criando, setCriando] = useState(false);
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [abrirJson, setAbrirJson] = useState(false);
 
-  const chaveBanco = ["professor", "questoes", professor] as const;
   const banco = useQuery({
-    queryKey: [...chaveBanco, "lista", assuntoId],
-    enabled: professor !== null,
-    queryFn: async ({ signal }) => {
+    queryKey: ["professor", "questoes", filtro],
+    queryFn: async () => {
       const { data } = await api.get<BancoDeQuestoes>("/api/professor/questoes", {
-        params: assuntoId === null ? undefined : { assuntoId }, signal,
+        params: filtro ? { assuntoId: filtro } : undefined,
       });
       return data;
     },
   });
-  const cobertura = useQuery({
-    queryKey: [...chaveBanco, "cobertura"],
-    enabled: professor !== null,
-    queryFn: async ({ signal }) =>
-      (await api.get<CoberturaBancoQuestoes>("/api/professor/questoes/cobertura", { signal })).data,
-  });
 
-  const atualizarBanco = () => queryClient.invalidateQueries({ queryKey: chaveBanco });
+  const atualizarLista = () => queryClient.invalidateQueries({ queryKey: ["professor", "questoes"] });
   const aoFalhar = (error: AxiosError<ErroApi>) =>
     toast.error(mensagemDeErro(error, "Não foi possível salvar. Tente novamente."));
 
@@ -67,7 +51,7 @@ export default function BancoDeQuestoesPage() {
     onSuccess: () => {
       toast.success("Questão cadastrada. Ela já pode ser sorteada para os alunos.");
       setCriando(false);
-      atualizarBanco();
+      atualizarLista();
     },
     onError: aoFalhar,
   });
@@ -78,7 +62,7 @@ export default function BancoDeQuestoesPage() {
     onSuccess: () => {
       toast.success("Questão atualizada.");
       setEditandoId(null);
-      atualizarBanco();
+      atualizarLista();
     },
     onError: aoFalhar,
   });
@@ -88,25 +72,13 @@ export default function BancoDeQuestoesPage() {
       (await api.patch(`/api/professor/questoes/${id}/ativa`, { ativa })).data,
     onSuccess: (_dados, { ativa }) => {
       toast.success(ativa ? "Questão reativada." : "Questão fora de circulação.");
-      atualizarBanco();
+      atualizarLista();
     },
     onError: aoFalhar,
   });
 
-  const assuntos = banco.data?.assuntos ?? cobertura.data?.assuntos ?? [];
+  const assuntos = banco.data?.assuntos ?? [];
   const semAssuntos = assuntos.length === 0;
-  const filtrando = assuntoId !== null || dificuldade !== null;
-  const questoes = banco.data?.questoes.filter((q) => dificuldade === null || q.dificuldade === dificuldade) ?? [];
-
-  function selecionarCelula(assunto: number, nivel: number) {
-    setAssuntoId(assunto);
-    setDificuldade(nivel);
-  }
-
-  function limparFiltros() {
-    setAssuntoId(null);
-    setDificuldade(null);
-  }
 
   return (
     <AuthGuard allowedRole="PROFESSOR">
@@ -146,28 +118,14 @@ export default function BancoDeQuestoesPage() {
             )}
           </div>
 
-          <section aria-labelledby="titulo-cobertura-banco" className="min-w-0">
-            <Card>
-              <CardHeader className="px-4 sm:px-6">
-                <h2 id="titulo-cobertura-banco" className="text-xl font-bold text-slate-900">Cobertura do banco</h2>
-              </CardHeader>
-              <CardContent className="px-4 sm:px-6">
-                <EstadoConsulta consulta={cobertura} recurso="a cobertura do banco" />
-                {cobertura.isSuccess && (
-                  <CoberturaDoBanco
-                    cobertura={cobertura.data}
-                    assuntoId={assuntoId}
-                    dificuldade={dificuldade}
-                    onSelecionar={selecionarCelula}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </section>
+          {banco.isLoading && <Skeleton className="h-64 w-full" />}
+          {banco.isError && (
+            <p className="text-sm text-red-600">Não foi possível carregar o banco de questões. Tente novamente.</p>
+          )}
 
           {banco.data && (
             <>
-              <AssuntosDaMateria materia={banco.data.materia} assuntos={assuntos} aoCriar={atualizarBanco} />
+              <AssuntosDaMateria materia={banco.data.materia} assuntos={assuntos} aoCriar={atualizarLista} />
 
               {abrirJson && (
                 <Card className="shadow-md border-indigo-200">
@@ -178,7 +136,7 @@ export default function BancoDeQuestoesPage() {
                     <ImportarExportarQuestoes
                       materia={banco.data.materia}
                       assuntos={assuntos}
-                      aoImportar={atualizarBanco}
+                      aoImportar={atualizarLista}
                     />
                   </CardContent>
                 </Card>
@@ -192,8 +150,7 @@ export default function BancoDeQuestoesPage() {
                   <CardContent>
                     <FormularioQuestao
                       assuntos={assuntos}
-                      assuntoPadrao={assuntoId ?? undefined}
-                      dificuldadePadrao={dificuldade ?? undefined}
+                      assuntoPadrao={filtro ? Number(filtro) : undefined}
                       enviando={criar.isPending}
                       rotuloBotao="Cadastrar questão"
                       onSalvar={(payload) => criar.mutate(payload)}
@@ -202,48 +159,35 @@ export default function BancoDeQuestoesPage() {
                   </CardContent>
                 </Card>
               )}
-            </>
-          )}
 
-          {(banco.data || filtrando) && (
-            <div className="flex flex-wrap items-end gap-3" role="group" aria-label="Filtros da listagem">
-              <div className="w-full min-w-0 space-y-1 sm:w-52">
-                <label htmlFor="filtro-assunto" className="text-sm font-medium text-slate-700">Assunto</label>
-                <select id="filtro-assunto" value={assuntoId ?? ""} className={campoFiltro}
-                  onChange={(e) => setAssuntoId(e.target.value ? Number(e.target.value) : null)}>
+              <div className="flex flex-wrap items-center gap-3">
+                <label htmlFor="filtro-assunto" className="text-sm font-medium text-slate-700">
+                  Assunto
+                </label>
+                <select
+                  id="filtro-assunto"
+                  value={filtro}
+                  onChange={(e) => setFiltro(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
+                >
                   <option value="">Todos</option>
-                  {assuntos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                  {assuntos.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nome}
+                    </option>
+                  ))}
                 </select>
+                <span className="text-sm text-slate-500">{banco.data.questoes.length} questões</span>
               </div>
-              <div className="w-full min-w-0 space-y-1 sm:w-40">
-                <label htmlFor="filtro-dificuldade" className="text-sm font-medium text-slate-700">Dificuldade</label>
-                <select id="filtro-dificuldade" value={dificuldade ?? ""} className={campoFiltro}
-                  onChange={(e) => setDificuldade(e.target.value ? Number(e.target.value) : null)}>
-                  <option value="">Todas</option>
-                  {dificuldades.map((nivel) => <option key={nivel} value={nivel}>{nivel}</option>)}
-                </select>
-              </div>
-              <Button variant="outline" className="min-h-11" disabled={!filtrando} onClick={limparFiltros}>
-                Limpar filtros
-              </Button>
-              <p aria-live="polite" className="py-2 text-sm text-slate-600">
-                {banco.data && `${questoes.length} ${questoes.length === 1 ? "questão" : "questões"}`}
-              </p>
-            </div>
-          )}
 
-          {banco.isLoading && <Skeleton className="h-64 w-full" />}
-          {banco.isError && <EstadoConsulta consulta={banco} recurso="o banco de questões" />}
-          {banco.data && (
-            <>
-              {questoes.length === 0 && (
+              {banco.data.questoes.length === 0 && (
                 <p className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
-                  {filtrando ? "Nenhuma questão corresponde aos filtros." : "Nenhuma questão cadastrada."}
+                  Nenhuma questão neste filtro ainda.
                 </p>
               )}
 
               <ul className="space-y-4">
-                {questoes.map((q) => (
+                {banco.data.questoes.map((q) => (
                   <li key={q.id}>
                     {editandoId === q.id ? (
                       <Card className="shadow-md border-indigo-200">

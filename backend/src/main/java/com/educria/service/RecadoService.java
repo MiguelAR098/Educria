@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** Aplica as permissões de turma e autoria dos recados e prepara respostas com os campos usados no painel. */
 @Service
 @RequiredArgsConstructor
 public class RecadoService {
@@ -46,14 +45,12 @@ public class RecadoService {
         return paraResposta(recado);
     }
 
-    /** Recados do professor autenticado enviados ao aluno da turma. */
+    /** Recados já enviados a um aluno da turma, para o professor acompanhar. */
     @Transactional(readOnly = true)
     public List<RecadoResponse> doAlunoParaProfessor(String emailProfessor, Long turmaId, Long alunoId) {
         Professor professor = buscarProfessor(emailProfessor);
         alunoDaTurma(professor, turmaId, alunoId);
-        return recadoRepository.doAlunoPorProfessor(alunoId, professor.getId(), PageRequest.of(0, TAMANHO_LISTA)).stream()
-                .map(RecadoService::paraResposta)
-                .toList();
+        return listar(alunoId);
     }
 
     /** Recados do próprio aluno logado. */
@@ -65,7 +62,6 @@ public class RecadoService {
                 listar(aluno.getId()));
     }
 
-    /** Marca todos os recados não lidos do aluno autenticado, inclusive os que estão fora da página exibida. */
     @Transactional
     public void marcarComoLidos(String emailAluno) {
         Aluno aluno = buscarAluno(emailAluno);

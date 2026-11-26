@@ -5,30 +5,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 /** Consultas do professor sobre as questões da sua matéria (inclui as desativadas). */
 public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> {
 
-    /** Projeção de uma célula da matriz de cobertura retornada pela agregação. */
-    interface ContagemPorDificuldade {
-        Long getAssuntoId();
-        Integer getDificuldade();
-        long getTotal();
-    }
-
-    /** Conta somente questões elegíveis pela mesma regra usada na seleção adaptativa. */
-    @Query("""
-            select a.id as assuntoId, q.dificuldade as dificuldade, count(q) as total
-            from Questao q join q.assunto a
-            where a.materia.id = :materiaId and
-            """ + QuestaoRepository.QUESTAO_ELEGIVEL + """
-            group by a.id, q.dificuldade
-            """)
-    List<ContagemPorDificuldade> contarElegiveis(@Param("materiaId") Long materiaId);
-
-    /** Carrega assunto e autor para montar a lista sem uma consulta adicional por questão. */
     @Query("""
             select q from Questao q
             join fetch q.assunto a
@@ -56,16 +39,12 @@ public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> 
             """)
     Optional<Questao> buscar(@Param("id") Long id);
 
-    /** Retorna identificador da questão, total de respostas e acertos sem expor os registros dos alunos. */
+    /** Para cada questão: {id, total de respostas, total de acertos}. */
     @Query("""
-            select q.id, count(r), sum(cast(case when r.correta = true then 1 else 0 end as Long))
+            select r.questao.id, count(r), sum(case when r.correta = true then 1 else 0 end)
             from RespostaAluno r
-            join r.questao q join q.assunto a
-            where a.materia.id = :materiaId
-              and (:assuntoId is null or a.id = :assuntoId)
-              and (:questaoId is null or q.id = :questaoId)
-            group by q.id
+            where r.questao.id in :ids
+            group by r.questao.id
             """)
-    List<Object[]> estatisticas(@Param("materiaId") Long materiaId, @Param("assuntoId") Long assuntoId,
-                                @Param("questaoId") Long questaoId);
+    List<Object[]> estatisticas(@Param("ids") Collection<Long> ids);
 }

@@ -27,10 +27,6 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
-/**
- * Exercita a API com Spring Security, Flyway e SQL Server. {@code @AutoConfigureMockMvc} disponibiliza
- * requisições simuladas ao controller e aos filtros sem abrir uma porta HTTP.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named = IntegracaoSqlServer.VARIAVEL_URL, matches = ".+")
@@ -47,7 +43,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
     private long materia, assunto, vazio, atividade;
     private String token;
 
-    /** Prepara dados próprios de cada teste e fixa o relógio na virada do dia de estudo. */
     @BeforeEach
     void preparar() throws Exception {
         when(relogio.getZone()).thenReturn(FUSO);
@@ -73,7 +68,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         db.update("delete from materias where id=?", materia);
     }
 
-    /** Requisições de titulares diferentes devem ter resultados distintos para o mesmo identificador. */
     @Test
     void isolaTodasAsOperacoesPeloJwt() throws Exception {
         JsonNode estado = abrir(assunto, 201);
@@ -251,7 +245,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         call(put(rota + "/encerrar"), token, 200);
         call(put(rota + "/questoes/" + segunda + "/resposta").content(escolha), token, 409);
         assertEquals(0, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
-        assertEquals(0, call(get(rota), token, 200).get("pontosSessao").asLong());
     }
 
     @Test
@@ -267,7 +260,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         var incorreta = call(put(resposta).content(body(Map.of("alternativa","C", "correta",true))), token, 200);
         assertTrue(incorreta.get("reaprender").asBoolean());
         assertFalse(incorreta.get("correta").asBoolean());
-        assertEquals(0, incorreta.get("pontosConcedidos").asInt());
         assertNotEquals("Explicação", incorreta.get("explicacao").asText());
         assertNiveis(incorreta, 1, 1);
         assertEquals(incorreta, call(get(rota), token, 200).get("feedback"));
@@ -286,7 +278,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         assertEquals(2, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
     }
 
-    /** Disputa o mesmo passo com alternativas diferentes e verifica o resultado também no banco. */
     @Test
     void enviosConcorrentesPreservamUmaUnicaResposta() throws Exception {
         JsonNode inicio = abrir(assunto, 201);
@@ -310,58 +301,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
                 usuarios.getFirst(), assunto));
     }
 
-    /** Garante que o reenvio conserve o valor gravado mesmo depois de uma edição na dificuldade da questão. */
-    @Test
-    void reenviosConcorrentesConservamPontosOriginaisAposEdicaoEPausa() throws Exception {
-        var estado = abrir(assunto, 201);
-        long sessao = estado.at("/sessao/id").asLong();
-        long questao = estado.at("/questaoAtual/id").asLong();
-        String rota = BASE + "/" + sessao;
-        db.update("update questoes set dificuldade=10 where id=?", questao);
-        String pedido = body(Map.of("alternativa", "A", "passo", 1, "pontosConcedidos", 999));
-        try (var pool = Executors.newFixedThreadPool(4)) {
-            var envios = IntStream.range(0, 4).<Callable<JsonNode>>mapToObj(i -> () ->
-                    call(put(rotaResposta(estado)).content(pedido), token, 200)).toList();
-            for (var retorno : pool.invokeAll(envios)) {
-                assertEquals(100, retorno.get().get("pontosConcedidos").asInt());
-            }
-        }
-        assertEquals(1, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
-        assertEquals(100, id("select pontos_individuais from respostas_aluno where sessao_id=?", sessao));
-        db.update("update questoes set dificuldade=1 where id=?", questao);
-        assertEquals(100, call(put(rota + "/interromper"), token, 200).get("pontosSessao").asLong());
-        assertEquals(100, call(get(rota), token, 200).get("pontosSessao").asLong());
-        assertEquals(100, call(put(rota + "/retomar"), token, 200).at("/feedback/pontosConcedidos").asInt());
-        assertEquals(100, call(put(rotaResposta(estado)).content(pedido), token, 200).get("pontosConcedidos").asInt());
-        assertEquals(100, call(get(rota), token, 200).get("pontosSessao").asLong());
-    }
-
-    @Test
-    void consultaUltimaRespostaDeOutraSessaoMesmoSemAgendamento() throws Exception {
-        long aluno = usuarios.getFirst();
-        long questao = id("select min(id) from questoes where atividade_id=?", atividade);
-        db.update("delete from questoes where atividade_id=? and id<>?", atividade, questao);
-        db.update("update questoes set dificuldade=5 where id=?", questao);
-        for (boolean correta : List.of(true, false)) {
-            long legada = inserirSessao(assunto, "ENCERRADA");
-            db.update("insert into sessao_questoes(sessao_id, indice, questao_id) values (?,0,?)", legada, questao);
-            db.update("""
-                    insert into respostas_aluno(aluno_id, sessao_id, questao_id, passo, resposta_dada, correta, respondido_em)
-                    values (?,?,?,1,?,?,'2000-01-01T12:00:00')
-                    """, aluno, legada, questao, correta ? "A" : "B", correta);
-        }
-        assertEquals(0, id("select count(*) from repeticao_espacada where aluno_id=?", aluno));
-        var estado = abrir(assunto, 201);
-        var acerto = body(Map.of("alternativa", "A", "passo", 1));
-        assertEquals(30, call(put(rotaResposta(estado)).content(acerto), token, 200).get("pontosConcedidos").asInt());
-        assertEquals(30, id("select sum(pontos_individuais) from respostas_aluno where aluno_id=?", aluno));
-
-        String colega = cadastrar("outro-pontos");
-        var estadoColega = call(post(BASE).content(body(Map.of("assuntoId", assunto))), colega, 201);
-        assertEquals(50, call(put(rotaResposta(estadoColega)).content(acerto), colega, 200).get("pontosConcedidos").asInt());
-        call(get(BASE + "/" + estado.at("/sessao/id").asLong()), colega, 404);
-    }
-
     @Test
     void evolucaoIsoladaProtegePrimeiroErroEConservaHistorico() throws Exception {
         long aluno = usuarios.getFirst();
@@ -370,8 +309,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         try {
             db.update("update alunos set turma_id=? where usuario_id=?", turma, aluno);
             db.update("insert into pontuacao_coletiva(turma_id,pontos_totais) values (?,37)", turma);
-            var inicial = call(get("/api/aluno/desempenho"), token, 200);
-            assertEquals(0, inicial.path("pontosIndividuais").asLong());
+            JsonNode global = call(get("/api/aluno/desempenho"), token, 200);
             db.update("update desempenho_por_assunto set nivel_atual=6 where aluno_id=? and assunto_id=?", aluno, assunto);
             JsonNode estado = abrir(assunto, 201);
             String sessao = BASE + "/" + estado.at("/sessao/id").asLong();
@@ -389,67 +327,12 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
                     select count(*) from desempenho_por_assunto where (aluno_id=? or aluno_id=?)
                     and (aluno_id<>? or assunto_id<>?) and (nivel_atual<>1 or erros_consecutivos+total_erros+total_acertos<>0)
                     """, aluno, usuarios.getLast(), aluno, assunto));
-            estado = call(put(sessao + "/questoes/3"), token, 200);
-            var acerto = call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "A"))), token, 200);
-            assertNiveis(acerto, 5, 6);
-            assertEquals(10, acerto.get("pontosConcedidos").asInt());
-            var atualizado = call(get("/api/aluno/desempenho"), token, 200);
-            assertEquals(10, atualizado.path("pontosIndividuais").asLong());
-            assertEquals(6, atualizado.path("nivelAtual").asInt());
-            assertEquals(1, atualizado.path("totalAcertos").asInt());
-            assertEquals(2, atualizado.path("totalErros").asInt());
-            assertEquals(0, atualizado.path("errosConsecutivos").asInt());
-            assertEquals(1, id("select nivel_atual from desempenho_adaptativo where aluno_id=?", aluno));
-            assertEquals(0, id("select total_acertos + total_erros from desempenho_adaptativo where aluno_id=?", aluno));
+            assertEquals(global, call(get("/api/aluno/desempenho"), token, 200));
             assertEquals(37, id("select pontos_totais from pontuacao_coletiva where turma_id=?", turma));
         } finally {
             db.update("update alunos set turma_id=null where turma_id=?", turma);
             db.update("delete from turmas where id=?", turma);
         }
-    }
-
-    @Test
-    void consultarTurmaSemSaldoRetornaZeroSemCriarRegistro() throws Exception {
-        long aluno = usuarios.getFirst();
-        String rota = "/api/aluno/turma/pontos";
-        var semTurma = call(get(rota), token, 200);
-        assertTrue(semTurma.get("turmaId").isNull());
-        assertEquals(0, semTurma.get("pontosTotais").asInt());
-        long turma = id("insert into turmas(nome) output inserted.id values (?)", prefixo);
-        try {
-            db.update("update alunos set turma_id=? where usuario_id=?", turma, aluno);
-            var semSaldo = call(get(rota), token, 200);
-            assertEquals(turma, semSaldo.get("turmaId").asLong());
-            assertEquals(0, semSaldo.get("pontosTotais").asInt());
-            assertEquals(0, id("select count(*) from pontuacao_coletiva where turma_id=?", turma));
-        } finally {
-            db.update("update alunos set turma_id=null where turma_id=?", turma);
-            db.update("delete from turmas where id=?", turma);
-        }
-    }
-
-    @Test
-    void registraErrosDeDiasDiferentesNaViradaDoRelogioDeEstudo() throws Exception {
-        var inicial = abrir(assunto, 201);
-        long sessao = inicial.at("/sessao/id").asLong();
-        long questao = inicial.at("/questaoAtual/id").asLong();
-        String rota = BASE + "/" + sessao;
-        call(put(rotaResposta(inicial)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200);
-
-        when(relogio.instant()).thenReturn(Instant.parse("2027-01-01T03:00:00Z"));
-        call(put(rota + "/questoes/2"), token, 200);
-        call(put(rota + "/questoes/3"), token, 200);
-        var repetida = call(put(rota + "/questoes/4"), token, 200);
-        assertEquals(questao, repetida.at("/questaoAtual/id").asLong());
-        call(put(rotaResposta(repetida)).content(body(Map.of("alternativa", "B", "passo", 4))), token, 200);
-
-        assertEquals(List.of("2026-12-31T23:59:59", "2027-01-01T00:00:00"), db.queryForList("""
-                select convert(varchar(19), respondido_em, 126)
-                from respostas_aluno where sessao_id=? order by passo
-                """, String.class, sessao));
-        var resultado = call(get(rota + "/resultado"), token, 200);
-        assertEquals(2, resultado.at("/sessao/erros").asInt());
-        assertEquals(2, resultado.at("/sessao/tentativasIncorretas").asInt());
     }
 
     @Test
@@ -466,14 +349,12 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         var legado = call(put(rotaResposta(estado)).content(acerto), token, 200);
         assertFalse(legado.has("nivelAnterior"));
         assertFalse(legado.has("nivelAtual"));
-        assertFalse(legado.has("pontosConcedidos"));
         assertEquals(0, id("select count(*) from desempenho_por_assunto where aluno_id=? and assunto_id=?", aluno, assunto));
         estado = call(put(BASE + "/" + sessao + "/questoes/2"), token, 200);
         assertNiveis(call(put(rotaResposta(estado)).content(acerto), token, 200), 1, 2);
         assertEquals(1, id("select total_acertos from desempenho_por_assunto where aluno_id=? and assunto_id=?", aluno, assunto));
     }
 
-    /** Uma restrição SQL força a falha e comprova que a tentativa, o nível e a agenda são atômicos. */
     @Test
     void falhaNaGravacaoDoDesempenhoReverteTambemAResposta() throws Exception {
         long aluno = usuarios.getFirst();
@@ -483,14 +364,11 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         var estado = abrir(assunto, 201);
         call(put(rotaResposta(estado)).content(body(Map.of("alternativa","A"))), token, 500);
         assertEquals(0, id("select count(*) from respostas_aluno where aluno_id=?", aluno));
-        assertEquals(0, call(get(BASE + "/" + estado.at("/sessao/id").asLong()), token, 200)
-                .get("pontosSessao").asLong());
         assertEquals(1, id("select nivel_atual from desempenho_por_assunto where aluno_id=? and assunto_id=?", aluno, assunto));
         assertEquals(0, id("select count(*) from repeticao_espacada where aluno_id=?", aluno));
         assertEquals(Integer.MAX_VALUE, id("select total_acertos from desempenho_por_assunto where aluno_id=? and assunto_id=?", aluno, assunto));
     }
 
-    /** Avança o dia pelo relógio de teste para observar o vencimento, o teto e o retorno a D1 após reaprender. */
     @Test
     void agendaPorQuestaoRespeitaViradaLocalIntervalosEReenvio() throws Exception {
         db.update("delete from questoes where atividade_id=? and id<>(select min(id) from questoes where atividade_id=?)",
@@ -513,9 +391,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
                 assertTrue(estado.get("repetindo").asBoolean());
             }
             var resposta = body(Map.of("alternativa", alternativa, "passo",estado.get("passo").asInt()));
-            var feedback = call(put(rota).content(resposta), token, 200);
-            int esperados = i == 0 ? 10 : i == intervalos.length - 1 ? 6 : 3;
-            assertEquals(esperados, feedback.get("pontosConcedidos").asInt());
+            call(put(rota).content(resposta), token, 200);
             var agenda = call(get(AGENDA), token, 200);
             assertEquals(dia.toString(), agenda.get("hoje").asText());
             assertEquals(0, agenda.get("pendentes").size());
@@ -608,32 +484,6 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         db.update("update respostas_aluno set nivel_anterior=null, nivel_atual=null where sessao_id=? and questao_id=?",
                 indicadores.get("id").asLong(), primeira);
         assertTrue(call(get(rota + "/resultado"), token, 200).at("/sessao/nivelAntes").isNull());
-    }
-
-    @Test
-    void questaoDesativadaSaiDasRevisoesSemAlterarResultadoGravado() throws Exception {
-        var inicial = abrir(assunto, 201);
-        long sessao = inicial.at("/sessao/id").asLong();
-        long questao = inicial.at("/questaoAtual/id").asLong();
-        String rota = BASE + "/" + sessao;
-        call(put(rotaResposta(inicial)).content(body(Map.of("alternativa", "A"))), token, 200);
-        assertEquals(questao, call(get(AGENDA), token, 200).at("/futuras/0/questaoId").asLong());
-        assertEquals(questao, call(get(rota + "/resultado"), token, 200).at("/revisoes/0/questaoId").asLong());
-
-        db.update("update questoes set ativa=0 where id=?", questao);
-        var agenda = call(get(AGENDA), token, 200);
-        var resultado = call(get(rota + "/resultado"), token, 200);
-        assertTrue(agenda.get("futuras").isEmpty());
-        assertTrue(agenda.get("pendentes").isEmpty());
-        assertTrue(resultado.get("revisoes").isEmpty());
-        assertTrue(resultado.at("/questoes/0/correta").asBoolean());
-        assertEquals(10, resultado.at("/sessao/pontosIndividuais").asLong());
-        assertEquals(1, id("select count(*) from repeticao_espacada where aluno_id=? and questao_id=?",
-                usuarios.getFirst(), questao));
-
-        db.update("update questoes set ativa=1 where id=?", questao);
-        assertEquals(questao, call(get(AGENDA), token, 200).at("/futuras/0/questaoId").asLong());
-        assertEquals(questao, call(get(rota + "/resultado"), token, 200).at("/revisoes/0/questaoId").asLong());
     }
 
     @Test

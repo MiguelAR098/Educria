@@ -1,9 +1,6 @@
 package com.educria.domain;
 
-/**
- * Estado imutável da progressão, reutilizado pelo diagnóstico de cada assunto e pelo diagnóstico global legado.
- * O {@code record} reúne o nível e a sequência de erros. As entidades guardam os valores resultantes no banco.
- */
+/** Regra de progressão comum ao diagnóstico global e ao de cada assunto. */
 public record NivelAdaptativo(int nivel, int errosConsecutivos) {
 
     public static final int MINIMO = 1;
@@ -15,14 +12,6 @@ public record NivelAdaptativo(int nivel, int errosConsecutivos) {
         }
     }
 
-    /**
-     * Um acerto sobe um nível até 10 e limpa a sequência. O primeiro erro preserva o nível.
-     * A partir do segundo erro seguido, um nível acima de 1 cai um ponto e a sequência recomeça.
-     * No nível 1, os erros mantêm o piso e continuam sendo contados até um acerto.
-     *
-     * @param acertou resultado da resposta que participa da progressão
-     * @return novo estado, com o nível e a sequência após a resposta
-     */
     public NivelAdaptativo aposResposta(boolean acertou) {
         if (acertou) {
             return new NivelAdaptativo(Math.min(nivel + 1, MAXIMO), 0);

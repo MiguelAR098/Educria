@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { CriarTurmaPayload, LancarPontosPayload } from "@/lib/types";
 import { AuthGuard } from "@/components/AuthGuard";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -18,413 +17,390 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  FolderPlus,
-  Award,
-  UserPlus,
-  Loader2,
-  CheckCircle2,
-  ShieldCheck,
-} from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { AxiosError } from "axios";
 
+// ── tipos locais ─────────────────────────────────────────────────────────────
+
+interface TurmaResumo {
+  id: number;
+  nome: string;
+  codigo: string;
+  anoLetivo: number;
+  pontosTotais: number;
+  totalAlunos: number;
+}
+
+interface AlunoResumo {
+  id: number;
+  nome: string;
+  matricula?: string;
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function apiError(err: unknown, fallback: string): string {
+  const e = err as AxiosError<{ message?: string; error?: string }>;
+  return e.response?.data?.message ?? e.response?.data?.error ?? fallback;
+}
+
+// ── componente principal ──────────────────────────────────────────────────────
+
 export default function AdminDashboardPage() {
-  // Estado Criar Turma
+  const qc = useQueryClient();
+
+  // ── Criar Turma
   const [nomeTurma, setNomeTurma] = useState("");
   const [codigoTurma, setCodigoTurma] = useState("");
-  const [anoLetivo, setAnoLetivo] = useState(
-    String(new Date().getFullYear())
-  );
-  const [turmaCriadaMsg, setTurmaCriadaMsg] = useState<string | null>(null);
+  const [anoLetivo, setAnoLetivo] = useState(String(new Date().getFullYear()));
 
-  // Estado Lançar Pontos
-  const [turmaId, setTurmaId] = useState("");
-  const [pontos, setPontos] = useState("");
-  const [pontosLancadosMsg, setPontosLancadosMsg] = useState<string | null>(
-    null
-  );
+  // ── Lançar Pontos
+  const [turmaIdPontos, setTurmaIdPontos] = useState("");
+  const [qtdPontos, setQtdPontos] = useState("");
 
-  // Estado Vincular Aluno
-  const [vincularTurmaId, setVincularTurmaId] = useState("");
-  const [vincularAlunoId, setVincularAlunoId] = useState("");
-  const [alunoVinculadoMsg, setAlunoVinculadoMsg] = useState<string | null>(
-    null
-  );
+  // ── Vincular / Desvincular Aluno
+  const [turmaIdVincular, setTurmaIdVincular] = useState("");
+  const [alunoIdVincular, setAlunoIdVincular] = useState("");
+  const [turmaIdDesvincular, setTurmaIdDesvincular] = useState("");
+  const [alunoIdDesvincular, setAlunoIdDesvincular] = useState("");
 
-  const criarTurmaMutation = useMutation({
-    mutationFn: async (payload: CriarTurmaPayload) => {
-      const { data } = await api.post("/api/admin/turmas", payload);
+  // ── Query: lista de turmas ────────────────────────────────────────────────
+  const { data: turmas = [], isLoading: carregandoTurmas } = useQuery<TurmaResumo[]>({
+    queryKey: ["admin", "turmas"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/admin/turmas");
       return data;
-    },
-    onSuccess: (data) => {
-      const idInfo = data?.id ? ` (ID: ${data.id})` : "";
-      const successText = `Turma "${nomeTurma}" criada com sucesso${idInfo}!`;
-      setTurmaCriadaMsg(successText);
-      toast.success(successText);
-      setNomeTurma("");
-      setCodigoTurma("");
-    },
-    onError: (error: AxiosError<{ message?: string; error?: string }>) => {
-      const msg =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        "Erro ao criar turma. Verifique os dados.";
-      toast.error(msg);
     },
   });
 
-  const lancarPontosMutation = useMutation({
-    mutationFn: async ({ turmaId, pontos }: LancarPontosPayload) => {
-      const { data } = await api.post(`/api/admin/turmas/${turmaId}/pontos`, {
-        pontos,
+  // ── Query: alunos da turma selecionada (desvincular) ─────────────────────
+  const { data: alunosDaTurma = [] } = useQuery<AlunoResumo[]>({
+    queryKey: ["admin", "turma-alunos", turmaIdDesvincular],
+    queryFn: async () => {
+      const { data } = await api.get(`/api/admin/turmas/${turmaIdDesvincular}/alunos`);
+      return data;
+    },
+    enabled: !!turmaIdDesvincular,
+  });
+
+  // ── Mutações ──────────────────────────────────────────────────────────────
+
+  const criarTurma = useMutation({
+    mutationFn: async () => {
+      const { data } = await api.post("/api/admin/turmas", {
+        nome: nomeTurma.trim(),
+        codigo: codigoTurma.trim(),
+        anoLetivo: Number(anoLetivo),
       });
       return data;
     },
-    onSuccess: () => {
-      const successText = `${pontos} pontos adicionados à turma #${turmaId}!`;
-      setPontosLancadosMsg(successText);
-      toast.success(successText);
-      setPontos("");
+    onSuccess: (data) => {
+      toast.success(`Turma "${data.nome}" criada (ID: ${data.id})`);
+      qc.invalidateQueries({ queryKey: ["admin", "turmas"] });
+      setNomeTurma(""); setCodigoTurma("");
     },
-    onError: (error: AxiosError<{ message?: string; error?: string }>) => {
-      const msg =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        "Erro ao lançar pontos. Verifique o ID da turma.";
-      toast.error(msg);
-    },
+    onError: (err) => toast.error(apiError(err, "Erro ao criar turma.")),
   });
 
-  const vincularAlunoMutation = useMutation({
-    mutationFn: async ({
-      turmaId,
-      alunoId,
-    }: {
-      turmaId: string;
-      alunoId: string;
-    }) => {
-      const { data } = await api.post(
-        `/api/admin/turmas/${turmaId}/alunos/${alunoId}`
-      );
-      return data;
+  const lancarPontos = useMutation({
+    mutationFn: async () => {
+      await api.post(`/api/admin/turmas/${turmaIdPontos}/pontos`, {
+        pontos: Number(qtdPontos),
+      });
     },
     onSuccess: () => {
-      const successText = `Aluno #${vincularAlunoId} vinculado à turma #${vincularTurmaId}!`;
-      setAlunoVinculadoMsg(successText);
-      toast.success(successText);
-      setVincularAlunoId("");
+      const turma = turmas.find((t) => String(t.id) === turmaIdPontos);
+      toast.success(`${qtdPontos} pts adicionados à ${turma?.nome ?? "turma"}`);
+      qc.invalidateQueries({ queryKey: ["admin", "turmas"] });
+      setQtdPontos("");
     },
-    onError: (error: AxiosError<{ message?: string; error?: string }>) => {
-      const msg =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        "Erro ao vincular aluno. Verifique os IDs.";
-      toast.error(msg);
-    },
+    onError: (err) => toast.error(apiError(err, "Erro ao lançar pontos.")),
   });
+
+  const vincularAluno = useMutation({
+    mutationFn: async () => {
+      await api.post(`/api/admin/turmas/${turmaIdVincular}/alunos/${alunoIdVincular}`);
+    },
+    onSuccess: () => {
+      const turma = turmas.find((t) => String(t.id) === turmaIdVincular);
+      toast.success(`Aluno #${alunoIdVincular} vinculado à ${turma?.nome ?? "turma"}`);
+      qc.invalidateQueries({ queryKey: ["admin", "turmas"] });
+      qc.invalidateQueries({ queryKey: ["admin", "turma-alunos"] });
+      setAlunoIdVincular("");
+    },
+    onError: (err) => toast.error(apiError(err, "Erro ao vincular aluno.")),
+  });
+
+  const desvincularAluno = useMutation({
+    mutationFn: async () => {
+      await api.delete(`/api/admin/turmas/${turmaIdDesvincular}/alunos/${alunoIdDesvincular}`);
+    },
+    onSuccess: () => {
+      toast.success(`Aluno desvinculado com sucesso.`);
+      qc.invalidateQueries({ queryKey: ["admin", "turmas"] });
+      qc.invalidateQueries({ queryKey: ["admin", "turma-alunos", turmaIdDesvincular] });
+      setAlunoIdDesvincular("");
+    },
+    onError: (err) => toast.error(apiError(err, "Erro ao desvincular aluno.")),
+  });
+
+  // ── handlers ──────────────────────────────────────────────────────────────
 
   const handleCriarTurma = (e: React.FormEvent) => {
     e.preventDefault();
-    setTurmaCriadaMsg(null);
     if (!nomeTurma.trim() || !codigoTurma.trim() || !anoLetivo.trim()) {
-      toast.warning("Preencha todos os campos da turma.");
-      return;
+      toast.warning("Preencha todos os campos."); return;
     }
-    criarTurmaMutation.mutate({
-      nome: nomeTurma.trim(),
-      codigo: codigoTurma.trim(),
-      anoLetivo: Number(anoLetivo),
-    });
+    criarTurma.mutate();
   };
 
   const handleLancarPontos = (e: React.FormEvent) => {
     e.preventDefault();
-    setPontosLancadosMsg(null);
-    if (!turmaId.trim() || !pontos.trim() || Number(pontos) <= 0) {
-      toast.warning("Informe um ID de turma válido e uma pontuação positiva.");
-      return;
+    if (!turmaIdPontos || Number(qtdPontos) < 1) {
+      toast.warning("Selecione uma turma e informe uma pontuação positiva."); return;
     }
-    lancarPontosMutation.mutate({
-      turmaId: turmaId.trim(),
-      pontos: Number(pontos),
-    });
+    lancarPontos.mutate();
   };
 
-  const handleVincularAluno = (e: React.FormEvent) => {
+  const handleVincular = (e: React.FormEvent) => {
     e.preventDefault();
-    setAlunoVinculadoMsg(null);
-    if (!vincularTurmaId.trim() || !vincularAlunoId.trim()) {
-      toast.warning("Informe o ID da turma e o ID do aluno.");
-      return;
+    if (!turmaIdVincular || !alunoIdVincular.trim()) {
+      toast.warning("Selecione a turma e informe o ID do aluno."); return;
     }
-    vincularAlunoMutation.mutate({
-      turmaId: vincularTurmaId.trim(),
-      alunoId: vincularAlunoId.trim(),
-    });
+    vincularAluno.mutate();
   };
+
+  const handleDesvincular = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!turmaIdDesvincular || !alunoIdDesvincular) {
+      toast.warning("Selecione a turma e o aluno."); return;
+    }
+    desvincularAluno.mutate();
+  };
+
+  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <AuthGuard allowedRole="ADMIN">
       <div className="min-h-screen bg-slate-50 flex flex-col">
         <Navbar />
 
-        <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-8 space-y-8">
+        <main className="flex-1 mx-auto w-full max-w-5xl px-4 sm:px-6 py-10 space-y-10">
+
+          {/* Cabeçalho */}
           <div className="space-y-1">
-            <Badge variant="secondary" className="gap-1">
-              <ShieldCheck className="h-3.5 w-3.5" />
-              Painel Administrativo
-            </Badge>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-              Gestão de Turmas e Pontuação
+            <Badge variant="secondary">Painel Administrativo</Badge>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Gestão de Turmas
             </h1>
             <p className="text-sm text-slate-500">
-              Crie novas turmas do Ensino Fundamental II, vincule estudantes e
-              distribua pontos coletivos.
+              Crie turmas, vincule alunos e lance pontos coletivos.
             </p>
           </div>
 
+          {/* Lista de turmas existentes */}
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
+              Turmas cadastradas
+            </h2>
+            {carregandoTurmas ? (
+              <p className="text-sm text-slate-400">Carregando turmas...</p>
+            ) : turmas.length === 0 ? (
+              <p className="text-sm text-slate-400">Nenhuma turma cadastrada ainda.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {turmas.map((t) => (
+                  <div
+                    key={t.id}
+                    className="rounded-lg border border-slate-200 bg-white px-4 py-3 space-y-1"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-800">{t.nome}</span>
+                      <span className="text-xs text-slate-400 font-mono">{t.codigo}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-slate-500">
+                      <span>{t.anoLetivo}</span>
+                      <span>{t.totalAlunos} alunos</span>
+                      <span className="font-medium text-slate-700">{t.pontosTotais} pts</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-300">ID: {t.id}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <Separator />
+
+          {/* Formulários */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Card Criar Turma */}
-            <Card className="shadow-md border-slate-200/80">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                    <FolderPlus className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle>Criar Nova Turma</CardTitle>
-                    <CardDescription>
-                      Cadastre uma turma no sistema EDUCRIA
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
 
+            {/* Criar Turma */}
+            <Card className="border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-base">Criar Turma</CardTitle>
+                <CardDescription>Cadastra uma nova turma com pontuação coletiva zerada.</CardDescription>
+              </CardHeader>
               <form onSubmit={handleCriarTurma}>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nomeTurma">Nome da Turma</Label>
-                    <Input
-                      id="nomeTurma"
-                      placeholder="Ex: 7º Ano A - Manhã"
-                      value={nomeTurma}
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="nomeTurma">Nome</Label>
+                    <Input id="nomeTurma" placeholder="Ex: 7º Ano A" value={nomeTurma}
                       onChange={(e) => setNomeTurma(e.target.value)}
-                      disabled={criarTurmaMutation.isPending}
-                      required
-                    />
+                      disabled={criarTurma.isPending} required />
                   </div>
-
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="codigoTurma">Código</Label>
-                      <Input
-                        id="codigoTurma"
-                        placeholder="Ex: 7A-2026"
-                        value={codigoTurma}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="codigo">Código</Label>
+                      <Input id="codigo" placeholder="7A-2026" value={codigoTurma}
                         onChange={(e) => setCodigoTurma(e.target.value)}
-                        disabled={criarTurmaMutation.isPending}
-                        required
-                      />
+                        disabled={criarTurma.isPending} required />
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="anoLetivo">Ano Letivo</Label>
-                      <Input
-                        id="anoLetivo"
-                        type="number"
-                        placeholder="2026"
-                        value={anoLetivo}
+                    <div className="space-y-1">
+                      <Label htmlFor="anoLetivo">Ano letivo</Label>
+                      <Input id="anoLetivo" type="number" value={anoLetivo}
                         onChange={(e) => setAnoLetivo(e.target.value)}
-                        disabled={criarTurmaMutation.isPending}
-                        required
-                      />
+                        disabled={criarTurma.isPending} required />
                     </div>
                   </div>
-
-                  {turmaCriadaMsg && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-800">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span>{turmaCriadaMsg}</span>
-                    </div>
-                  )}
                 </CardContent>
-
                 <CardFooter>
-                  <Button
-                    type="submit"
-                    className="w-full gap-2"
-                    disabled={criarTurmaMutation.isPending}
-                  >
-                    {criarTurmaMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Salvando turma...
-                      </>
-                    ) : (
-                      <>
-                        <FolderPlus className="h-4 w-4" />
-                        Criar Turma
-                      </>
-                    )}
+                  <Button type="submit" className="w-full" disabled={criarTurma.isPending}>
+                    {criarTurma.isPending ? "Salvando..." : "Criar Turma"}
                   </Button>
                 </CardFooter>
               </form>
             </Card>
 
-            {/* Card Lançar Pontos */}
-            <Card className="shadow-md border-slate-200/80">
+            {/* Lançar Pontos */}
+            <Card className="border-slate-200">
               <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                    <Award className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle>Lançar Pontos Coletivos</CardTitle>
-                    <CardDescription>
-                      Recompense o esforço conjunto de uma turma
-                    </CardDescription>
-                  </div>
-                </div>
+                <CardTitle className="text-base">Lançar Pontos Coletivos</CardTitle>
+                <CardDescription>Recompensa o engajamento de uma turma.</CardDescription>
               </CardHeader>
-
               <form onSubmit={handleLancarPontos}>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="turmaId">ID da Turma</Label>
-                    <Input
-                      id="turmaId"
-                      placeholder="Ex: 1"
-                      value={turmaId}
-                      onChange={(e) => setTurmaId(e.target.value)}
-                      disabled={lancarPontosMutation.isPending}
-                      required
-                    />
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="turmaPontos">Turma</Label>
+                    <select
+                      id="turmaPontos"
+                      className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      value={turmaIdPontos}
+                      onChange={(e) => setTurmaIdPontos(e.target.value)}
+                      disabled={lancarPontos.isPending}
+                    >
+                      <option value="">Selecione uma turma</option>
+                      {turmas.map((t) => (
+                        <option key={t.id} value={String(t.id)}>
+                          {t.nome} ({t.pontosTotais} pts)
+                        </option>
+                      ))}
+                    </select>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="pontos">Quantidade de Pontos</Label>
-                    <Input
-                      id="pontos"
-                      type="number"
-                      min={1}
-                      placeholder="Ex: 150"
-                      value={pontos}
-                      onChange={(e) => setPontos(e.target.value)}
-                      disabled={lancarPontosMutation.isPending}
-                      required
-                    />
+                  <div className="space-y-1">
+                    <Label htmlFor="qtdPontos">Quantidade de pontos</Label>
+                    <Input id="qtdPontos" type="number" min={1} placeholder="Ex: 150"
+                      value={qtdPontos} onChange={(e) => setQtdPontos(e.target.value)}
+                      disabled={lancarPontos.isPending} required />
                   </div>
-
-                  {pontosLancadosMsg && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-800">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span>{pontosLancadosMsg}</span>
-                    </div>
-                  )}
                 </CardContent>
-
                 <CardFooter>
-                  <Button
-                    type="submit"
-                    variant="success"
-                    className="w-full gap-2"
-                    disabled={lancarPontosMutation.isPending}
-                  >
-                    {lancarPontosMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Lançando pontos...
-                      </>
-                    ) : (
-                      <>
-                        <Award className="h-4 w-4" />
-                        Lançar Pontos
-                      </>
-                    )}
+                  <Button type="submit" className="w-full" disabled={lancarPontos.isPending}>
+                    {lancarPontos.isPending ? "Lançando..." : "Lançar Pontos"}
                   </Button>
                 </CardFooter>
               </form>
             </Card>
 
-            {/* Card Vincular Aluno à Turma */}
-            <Card className="shadow-md border-slate-200/80 md:col-span-2">
+            {/* Vincular Aluno */}
+            <Card className="border-slate-200">
               <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
-                    <UserPlus className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <CardTitle>Vincular Aluno à Turma</CardTitle>
-                    <CardDescription>
-                      Associe um estudante cadastrado a uma turma existente
-                    </CardDescription>
-                  </div>
-                </div>
+                <CardTitle className="text-base">Vincular Aluno</CardTitle>
+                <CardDescription>Associa um aluno a uma turma pelo ID do aluno.</CardDescription>
               </CardHeader>
-
-              <form onSubmit={handleVincularAluno}>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="vincularTurmaId">ID da Turma</Label>
-                      <Input
-                        id="vincularTurmaId"
-                        type="number"
-                        min={1}
-                        placeholder="Ex: 1"
-                        value={vincularTurmaId}
-                        onChange={(e) => setVincularTurmaId(e.target.value)}
-                        disabled={vincularAlunoMutation.isPending}
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="vincularAlunoId">ID do Aluno</Label>
-                      <Input
-                        id="vincularAlunoId"
-                        type="number"
-                        min={1}
-                        placeholder="Ex: 2"
-                        value={vincularAlunoId}
-                        onChange={(e) => setVincularAlunoId(e.target.value)}
-                        disabled={vincularAlunoMutation.isPending}
-                        required
-                      />
-                    </div>
+              <form onSubmit={handleVincular}>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Turma</Label>
+                    <select
+                      className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      value={turmaIdVincular}
+                      onChange={(e) => setTurmaIdVincular(e.target.value)}
+                      disabled={vincularAluno.isPending}
+                    >
+                      <option value="">Selecione uma turma</option>
+                      {turmas.map((t) => (
+                        <option key={t.id} value={String(t.id)}>{t.nome}</option>
+                      ))}
+                    </select>
                   </div>
-
-                  {alunoVinculadoMsg && (
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-medium text-emerald-800">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                      <span>{alunoVinculadoMsg}</span>
-                    </div>
-                  )}
+                  <div className="space-y-1">
+                    <Label htmlFor="alunoIdVincular">ID do aluno</Label>
+                    <Input id="alunoIdVincular" type="number" min={1} placeholder="Ex: 42"
+                      value={alunoIdVincular}
+                      onChange={(e) => setAlunoIdVincular(e.target.value)}
+                      disabled={vincularAluno.isPending} required />
+                  </div>
                 </CardContent>
-
                 <CardFooter>
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    className="w-full sm:w-auto gap-2"
-                    disabled={vincularAlunoMutation.isPending}
-                  >
-                    {vincularAlunoMutation.isPending ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Vinculando...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="h-4 w-4" />
-                        Vincular Aluno
-                      </>
-                    )}
+                  <Button type="submit" className="w-full" disabled={vincularAluno.isPending}>
+                    {vincularAluno.isPending ? "Vinculando..." : "Vincular Aluno"}
                   </Button>
                 </CardFooter>
               </form>
             </Card>
+
+            {/* Desvincular Aluno */}
+            <Card className="border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-base">Desvincular Aluno</CardTitle>
+                <CardDescription>Remove um aluno de uma turma. Os dados de desempenho são mantidos.</CardDescription>
+              </CardHeader>
+              <form onSubmit={handleDesvincular}>
+                <CardContent className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Turma</Label>
+                    <select
+                      className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      value={turmaIdDesvincular}
+                      onChange={(e) => { setTurmaIdDesvincular(e.target.value); setAlunoIdDesvincular(""); }}
+                      disabled={desvincularAluno.isPending}
+                    >
+                      <option value="">Selecione uma turma</option>
+                      {turmas.map((t) => (
+                        <option key={t.id} value={String(t.id)}>{t.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Aluno</Label>
+                    <select
+                      className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                      value={alunoIdDesvincular}
+                      onChange={(e) => setAlunoIdDesvincular(e.target.value)}
+                      disabled={!turmaIdDesvincular || desvincularAluno.isPending}
+                    >
+                      <option value="">
+                        {turmaIdDesvincular ? "Selecione um aluno" : "Selecione a turma primeiro"}
+                      </option>
+                      {alunosDaTurma.map((a) => (
+                        <option key={a.id} value={String(a.id)}>
+                          {a.nome}{a.matricula ? ` — ${a.matricula}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </CardContent>
+                <CardFooter>
+                  <Button type="submit" variant="destructive" className="w-full"
+                    disabled={desvincularAluno.isPending || !alunoIdDesvincular}>
+                    {desvincularAluno.isPending ? "Desvinculando..." : "Desvincular Aluno"}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+
           </div>
         </main>
       </div>

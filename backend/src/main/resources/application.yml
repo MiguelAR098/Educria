@@ -34,7 +34,7 @@ spring:
 
 server:
   address: 127.0.0.1
-  port: 8080
+  port: 8085
   error:
     include-message: never
     include-binding-errors: never
@@ -49,5 +49,3 @@ logging:
   level:
     com.educria: DEBUG
     org.springframework.security: INFO
-    # Mensagens do driver podem incluir valores de entrada. O handler da API registra a falha sem esses valores.
-    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF

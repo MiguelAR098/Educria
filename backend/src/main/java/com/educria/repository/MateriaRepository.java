@@ -9,28 +9,20 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-/** Projeta o catálogo e os pontos registrados do aluno para exibição por matéria e assunto. */
 public interface MateriaRepository extends Repository<Materia, Long> {
 
     boolean existsById(Long id);
 
-    /** Inclui matérias sem assuntos e usa a classificação da sessão histórica para somar os pontos. */
     @Query("""
-            select new com.educria.dto.MateriaResumo(m.id, m.nome, count(s.id), coalesce((
-                select sum(cast(r.pontosIndividuais as Long)) from RespostaAluno r join r.sessao historica
-                where r.aluno.id = :alunoId and r.pontosIndividuais is not null and historica.assunto.materia = m
-            ), 0L))
+            select new com.educria.dto.MateriaResumo(m.id, m.nome, count(s.id))
             from Materia m left join Assunto s on s.materia = m
             group by m.id, m.nome
             order by m.id
             """)
-    List<MateriaResumo> listarCatalogo(@Param("alunoId") Long alunoId);
+    List<MateriaResumo> listarCatalogo();
 
     @Query("""
-            select new com.educria.dto.AssuntoDoAluno(s.id, s.nome, coalesce(d.nivelAtual, 1), coalesce((
-                select sum(cast(r.pontosIndividuais as Long)) from RespostaAluno r join r.sessao historica
-                where r.aluno.id = :alunoId and r.pontosIndividuais is not null and historica.assunto = s
-            ), 0L))
+            select new com.educria.dto.AssuntoDoAluno(s.id, s.nome, coalesce(d.nivelAtual, 1))
             from Assunto s left join DesempenhoPorAssunto d
                 on d.assunto = s and d.aluno.id = :alunoId
             where s.materia.id = :materiaId

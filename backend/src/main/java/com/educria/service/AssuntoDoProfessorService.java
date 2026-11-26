@@ -24,10 +24,6 @@ public class AssuntoDoProfessorService {
     private final AssuntoRepository assuntoRepository;
     private final CadastroDeAssuntoRepository cadastroRepository;
 
-    /**
-     * Usa o e-mail autenticado para localizar a matéria e devolve o identificador e o nome do novo assunto.
-     * A busca por duplicatas compara nomes sem distinção de acentos, caixa e espaços excedentes.
-     */
     @Transactional
     public AssuntoSimples criar(String email, String nome) {
         Professor professor = professorRepository.buscarComTurmas(email)

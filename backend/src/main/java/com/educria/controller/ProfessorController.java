@@ -26,10 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Reúne operações da área do professor. GET consulta as projeções, e POST registra atividades ou recados.
- * O e-mail autenticado segue ao serviço, que valida o vínculo com a turma ou com o aluno.
- */
 @RestController
 @RequestMapping("/api/professor")
 @RequiredArgsConstructor

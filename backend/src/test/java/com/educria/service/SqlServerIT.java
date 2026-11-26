@@ -36,17 +36,7 @@ class SqlServerIT extends IntegracaoSqlServer {
 
     @Test
     void flywayValidaEsquemaComAIdentidadeEOCatalogo() {
-        assertEquals(5, id("select count(*) from dbo.flyway_schema_history where success=1 and version in ('1','2','3','4','5')"));
-        assertEquals(1, id("""
-                select count(*) from sys.columns
-                where object_id=object_id('dbo.respostas_aluno') and name='pontos_individuais'
-                    and is_nullable=1 and default_object_id=0
-                """));
-        assertEquals(1, id("""
-                select count(*) from sys.indexes
-                where object_id=object_id('dbo.respostas_aluno') and name='idx_respostas_aluno_pontos_por_sessao'
-                    and has_filter=1 and is_disabled=0
-                """));
+        assertEquals(2, id("select count(*) from dbo.flyway_schema_history where success=1 and version in ('1','2')"));
         assertEquals(1000, id("select cast(ident_seed('dbo.recados') as bigint)"));
         assertEquals(10, id("select cast(ident_incr('dbo.recados') as bigint)"));
         assertEquals(3, id("select count(*) from dbo.materias where nome in (N'Matemática',N'Português',N'Ciências')"));
@@ -83,12 +73,10 @@ class SqlServerIT extends IntegracaoSqlServer {
         chamar(get(rota), outro.get("token").asText(), null, 404);
         chamar(get(rota), "token-invalido", null, 401);
         for (int passo = 1; passo <= 4; passo++) {
-            Map<String, Object> pedido = Map.of("passo", passo, "alternativa", passo == 4 ? "A" : "B",
-                    "pontosConcedidos", 10_000);
+            Map<String, Object> pedido = Map.of("passo", passo, "alternativa", passo == 4 ? "A" : "B");
             var feedback = chamar(put(resposta), token, pedido, 200);
             assertEquals(feedback, chamar(put(resposta), token, pedido, 200));
             assertEquals(passo == 4, feedback.get("correta").asBoolean());
-            assertEquals(passo == 4 ? 6 : 0, feedback.get("pontosConcedidos").asInt());
             assertEquals(passo == 3, feedback.has("alternativaCorreta"));
             if (passo == 1) {
                 assertEquals(feedback, chamar(put(rota + "/interromper"), token, null, 200).get("feedback"));

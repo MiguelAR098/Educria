@@ -32,7 +32,7 @@ async function encaminhar(request: Request) {
   }
 
   const entrada = new URL(request.url);
-  const destino = new URL("http://127.0.0.1:8080");
+  const destino = new URL("http://127.0.0.1:8085");
   destino.pathname = entrada.pathname;
   destino.search = entrada.search;
 

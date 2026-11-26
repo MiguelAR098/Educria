@@ -11,5 +11,4 @@ public class DesempenhoResponse {
     private int totalAcertos;
     private int totalErros;
     private boolean nivelMaximo;
-    private long pontosIndividuais;
 }

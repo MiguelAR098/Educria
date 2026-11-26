@@ -14,7 +14,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-/** Ordena as questões elegíveis para o nível e o contexto do aluno, com preferência para revisões pendentes. */
 @Service
 @RequiredArgsConstructor
 public class SelecaoAdaptativaService {
@@ -46,18 +45,7 @@ public class SelecaoAdaptativaService {
         }
     }
 
-    /**
-     * Retorna vazio ao esgotar o assunto. A seleção não consome nem agenda a questão.
-     * Consulta as questões ativas com dificuldade preenchida e texto disponível na alternativa correta.
-     * Exclui questões usadas e revisões futuras, respeitando a cota de três revisões por sessão.
-     * Entre as elegíveis, prefere revisões. Em seguida escolhe a menor distância até o nível,
-     * desempata pela menor dificuldade e, por fim, pelo menor ID.
-     *
-     * @param assuntoId assunto de estudo
-     * @param nivel nível atual entre 1 e 10
-     * @param contexto questões usadas, agenda, revisões apresentadas e data de referência
-     * @return questão escolhida ou {@link Optional#empty()} quando as possibilidades se esgotam
-     */
+    /** Retorna vazio ao esgotar o assunto. A seleção não consome nem agenda a questão. */
     @Transactional(readOnly = true)
     public Optional<QuestaoParaAluno> selecionar(Long assuntoId, int nivel, Contexto contexto) {
         Objects.requireNonNull(assuntoId, "Assunto obrigatório");

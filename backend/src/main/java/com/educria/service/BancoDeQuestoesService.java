@@ -1,6 +1,5 @@
 package com.educria.service;
 
-import com.educria.domain.NivelAdaptativo;
 import com.educria.domain.entity.Assunto;
 import com.educria.domain.entity.Atividade;
 import com.educria.domain.entity.Materia;
@@ -8,7 +7,6 @@ import com.educria.domain.entity.Professor;
 import com.educria.domain.entity.Questao;
 import com.educria.dto.AssuntoSimples;
 import com.educria.dto.BancoDeQuestoes;
-import com.educria.dto.CoberturaDoBanco;
 import com.educria.dto.QuestaoDoProfessor;
 import com.educria.dto.QuestaoExportada;
 import com.educria.dto.QuestaoRequest;
@@ -25,11 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -45,17 +41,12 @@ public class BancoDeQuestoesService {
     private static final Set<String> LETRAS = Set.of("A", "B", "C", "D");
     static final int LIMITE_IMPORTACAO = 200;
     private static final int LIMITE_MENSAGENS = 20;
-    private static final int QUANTIDADE_DIFICULDADES = NivelAdaptativo.MAXIMO - NivelAdaptativo.MINIMO + 1;
 
     private final ProfessorRepository professorRepository;
     private final AssuntoRepository assuntoRepository;
     private final BancoDeQuestoesRepository bancoRepository;
     private final AtividadeRepository atividadeRepository;
 
-    /**
-     * Retorna questões ativas e desativadas da matéria, com estatísticas agregadas de uso.
-     * Quando informado, o assunto precisa pertencer à matéria do professor autenticado.
-     */
     @Transactional(readOnly = true)
     public BancoDeQuestoes listar(String email, Long assuntoId) {
         Professor professor = buscarProfessor(email);
@@ -70,37 +61,11 @@ public class BancoDeQuestoesService {
             questoes = bancoRepository.doAssunto(assuntoId);
         }
 
-        Map<Long, long[]> uso = questoes.isEmpty() ? Map.of() : estatisticas(materia.getId(), assuntoId, null);
+        Map<Long, long[]> uso = estatisticas(questoes);
         return new BancoDeQuestoes(
                 materia.getNome(),
                 assuntos.stream().map(a -> new AssuntoSimples(a.getId(), a.getNome())).toList(),
                 questoes.stream().map(q -> paraResposta(q, uso.get(q.getId()))).toList());
-    }
-
-    /** Monta uma linha por assunto e uma célula por dificuldade usando contagens feitas pelo banco. */
-    @Transactional(readOnly = true)
-    public CoberturaDoBanco cobertura(String email) {
-        Long materiaId = buscarProfessor(email).getMateria().getId();
-        List<Assunto> assuntos = assuntoRepository.daMateria(materiaId);
-        Map<Long, long[]> contagensPorAssunto = new HashMap<>();
-
-        for (var contagem : bancoRepository.contarElegiveis(materiaId)) {
-            long[] contagens = contagensPorAssunto.computeIfAbsent(contagem.getAssuntoId(),
-                    id -> new long[QUANTIDADE_DIFICULDADES]);
-            contagens[contagem.getDificuldade() - NivelAdaptativo.MINIMO] = contagem.getTotal();
-        }
-
-        // O catálogo também inclui assuntos ausentes da consulta agregada, com todas as células em zero.
-        long[] semQuestoes = new long[QUANTIDADE_DIFICULDADES];
-        List<CoberturaDoBanco.Assunto> cobertura = assuntos.stream().map(assunto -> {
-            long[] contagens = contagensPorAssunto.getOrDefault(assunto.getId(), semQuestoes);
-            return new CoberturaDoBanco.Assunto(assunto.getId(), assunto.getNome(),
-                    Arrays.stream(contagens).boxed().toList(), Arrays.stream(contagens).sum());
-        }).toList();
-        long total = cobertura.stream().mapToLong(CoberturaDoBanco.Assunto::total).sum();
-        long vazias = cobertura.stream().flatMap(assunto -> assunto.contagens().stream())
-                .filter(contagem -> contagem == 0).count();
-        return new CoberturaDoBanco(cobertura, total, vazias);
     }
 
     @Transactional
@@ -119,7 +84,6 @@ public class BancoDeQuestoesService {
         return paraResposta(bancoRepository.save(questao), null);
     }
 
-    /** Atualiza o conteúdo e o assunto dentro da matéria do professor, preservando o identificador da questão. */
     @Transactional
     public QuestaoDoProfessor atualizar(String email, Long questaoId, QuestaoRequest request) {
         validar(request);
@@ -128,40 +92,32 @@ public class BancoDeQuestoesService {
         Assunto assunto = assuntoDaMateria(assuntoRepository.daMateria(professor.getMateria().getId()), request.assuntoId());
 
         preencher(questao, assunto, request);
-        return paraResposta(questao, estatisticas(professor.getMateria().getId(), null, questaoId).get(questaoId));
+        return paraResposta(questao, estatisticas(List.of(questao)).get(questaoId));
     }
 
-    /** Altera a disponibilidade da questão preservando a linha usada nas respostas e no histórico. */
     @Transactional
     public QuestaoDoProfessor definirAtiva(String email, Long questaoId, boolean ativa) {
         Professor professor = buscarProfessor(email);
         Questao questao = questaoDaMateria(professor, questaoId);
 
         questao.setAtiva(ativa);
-        return paraResposta(questao, estatisticas(professor.getMateria().getId(), null, questaoId).get(questaoId));
+        return paraResposta(questao, estatisticas(List.of(questao)).get(questaoId));
     }
 
-    /** Questões ativas da matéria com alternativas e gabarito no formato de importação. */
+    /** Questões ativas da matéria no formato do JSON de importação (serve como cópia de segurança). */
     @Transactional(readOnly = true)
     public List<QuestaoExportada> exportar(String email) {
         Professor professor = buscarProfessor(email);
         return bancoRepository.daMateria(professor.getMateria().getId()).stream()
-                .filter(BancoDeQuestoesService::exportavel)
+                .filter(q -> q.isAtiva() && q.getDificuldade() != null)
                 .map(q -> new QuestaoExportada(
                         q.getAssunto().getNome(),
                         q.getDificuldade(),
                         q.getEnunciado(),
                         List.of(q.getAlternativaA(), q.getAlternativaB(), q.getAlternativaC(), q.getAlternativaD()),
-                        "ABCD".indexOf(q.getRespostaCorreta().toUpperCase(Locale.ROOT)),
+                        "ABCD".indexOf(q.getRespostaCorreta()),
                         q.getExplicacao()))
                 .toList();
-    }
-
-    private static boolean exportavel(Questao questao) {
-        return questao.isAtiva() && questao.getDificuldade() != null
-                && LETRAS.contains(questao.getRespostaCorreta().toUpperCase(Locale.ROOT))
-                && Stream.of(questao.getAlternativaA(), questao.getAlternativaB(), questao.getAlternativaC(),
-                        questao.getAlternativaD()).noneMatch(alternativa -> alternativa == null || alternativa.isBlank());
     }
 
     /**
@@ -194,7 +150,6 @@ public class BancoDeQuestoesService {
             porId.put(assunto.getId(), assunto);
         });
 
-        // O mesmo conjunto detecta enunciados que já estavam no banco e repetições dentro do lote.
         Set<String> existentes = new HashSet<>();
         bancoRepository.daMateria(materia.getId())
                 .forEach(q -> existentes.add(LeitorDeQuestoes.normalizar(q.getEnunciado())));
@@ -279,7 +234,7 @@ public class BancoDeQuestoesService {
         return questao;
     }
 
-    /** Busca ou cria a atividade que agrupa as questões cadastradas por professores da matéria. */
+    /** Container exigido pelo modelo: uma atividade por matéria agrupa as questões dos professores. */
     private Atividade atividadeDoBanco(Materia materia) {
         String titulo = "Banco de questões: " + materia.getNome();
         return atividadeRepository.findFirstByTituloOrderByIdAsc(titulo)
@@ -290,9 +245,12 @@ public class BancoDeQuestoesService {
     }
 
     /** Para cada questão: {total de respostas, total de acertos}. */
-    private Map<Long, long[]> estatisticas(Long materiaId, Long assuntoId, Long questaoId) {
+    private Map<Long, long[]> estatisticas(List<Questao> questoes) {
         Map<Long, long[]> uso = new HashMap<>();
-        for (Object[] linha : bancoRepository.estatisticas(materiaId, assuntoId, questaoId)) {
+        if (questoes.isEmpty()) {
+            return uso;
+        }
+        for (Object[] linha : bancoRepository.estatisticas(questoes.stream().map(Questao::getId).toList())) {
             long total = ((Number) linha[1]).longValue();
             long acertos = linha[2] == null ? 0 : ((Number) linha[2]).longValue();
             uso.put(((Number) linha[0]).longValue(), new long[]{total, acertos});

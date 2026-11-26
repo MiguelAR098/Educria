@@ -1,18 +1,14 @@
 param(
     [Parameter(Mandatory)]
-    [ValidatePattern('\Aeducria_(?:sqlserver_teste|demo)_[a-zA-Z0-9_]{1,60}\z')]
+    [ValidatePattern('^educria_sqlserver_teste_[a-zA-Z0-9_]{1,60}$')]
     [string]$Banco,
     [Parameter(Mandatory)]
-    [ValidateSet('Criar','Demonstracao','Verificar','Dicionario')]
+    [ValidateSet('Criar','Demonstracao','Verificar')]
     [string]$Etapa,
-    [ValidatePattern('\A(?:(?:lpc:)?(?:\.|\(local\)|localhost|127\.0\.0\.1)(?:\\[a-zA-Z0-9_]{1,32})?|tcp:(?:localhost|127\.0\.0\.1),[0-9]{1,5})\z')]
     [string]$Servidor = 'lpc:.\SQLEXPRESS'
 )
 
 $ErrorActionPreference = 'Stop'
-if ($Etapa -ne 'Criar' -and $Banco -notmatch '\Aeducria_sqlserver_teste_') {
-    throw 'As provas academicas exigem uma base educria_sqlserver_teste_.'
-}
 $conexao = [System.Data.SqlClient.SqlConnectionStringBuilder]::new()
 $conexao['Data Source'] = $Servidor
 $conexao['Initial Catalog'] = if ($Etapa -eq 'Criar') { 'master' } else { $Banco }
@@ -82,8 +78,6 @@ WHERE class=0 AND name=N'EducriaAmbiente' AND CONVERT(nvarchar(30),value)=N'desc
         ExecutarScript '01-dados-demo.sql' $false
         ExecutarScript '02-automacao.sql' $false
         Write-Output "Demonstração disponível em $Banco"
-    } elseif ($Etapa -eq 'Dicionario') {
-        ExecutarScript '05-dicionario.sql' $true
     } else {
         ExecutarScript '03-verificacao.sql' $true
         ExecutarScript '04-integridade.sql' $true

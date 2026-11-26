@@ -2,7 +2,6 @@ package com.educria.controller;
 
 import com.educria.dto.AtivarQuestaoRequest;
 import com.educria.dto.BancoDeQuestoes;
-import com.educria.dto.CoberturaDoBanco;
 import com.educria.dto.QuestaoDoProfessor;
 import com.educria.dto.QuestaoExportada;
 import com.educria.dto.QuestaoRequest;
@@ -27,10 +26,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Interface HTTP do banco da matéria do professor. PUT recebe os campos editáveis da questão,
- * enquanto PATCH altera somente a disponibilidade. A cobertura tem uma consulta agregada própria.
- */
 @RestController
 @RequestMapping("/api/professor/questoes")
 @RequiredArgsConstructor
@@ -42,11 +37,6 @@ public class BancoDeQuestoesController {
     public BancoDeQuestoes listar(@AuthenticationPrincipal UserDetails usuario,
                                   @RequestParam(required = false) Long assuntoId) {
         return bancoService.listar(usuario.getUsername(), assuntoId);
-    }
-
-    @GetMapping("/cobertura")
-    public CoberturaDoBanco cobertura(@AuthenticationPrincipal UserDetails usuario) {
-        return bancoService.cobertura(usuario.getUsername());
     }
 
     @PostMapping

@@ -1,5 +1,8 @@
 package com.educria.service;
 
+import com.educria.controller.AdminController.AlunoResumo;
+import com.educria.controller.AdminController.TurmaDetalhe;
+import com.educria.controller.AdminController.TurmaResumo;
 import com.educria.domain.entity.Aluno;
 import com.educria.domain.entity.PontuacaoColetiva;
 import com.educria.domain.entity.Turma;
@@ -12,10 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Mantém turmas, vínculos de alunos e o saldo coletivo nas operações do perfil administrativo.
- * O Spring Security aplica a permissão de perfil na entrada HTTP.
- */
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class AdminService {
@@ -24,15 +25,8 @@ public class AdminService {
     private final PontuacaoColetivaRepository pontuacaoColetivaRepository;
     private final AlunoRepository alunoRepository;
 
-    /**
-     * Cria a turma com pontuação inicial de zero. A transação permite que turma e saldo
-     * sejam gravados juntos ou revertidos em caso de falha.
-     *
-     * @param nome nome de exibição da turma
-     * @param codigo código usado para identificar a turma nas consultas
-     * @param anoLetivo ano do cadastro, distinto da série escolar
-     * @return turma persistida com a pontuação vinculada
-     */
+    // ── Turmas ──────────────────────────────────────────────────────────────
+
     @Transactional
     public Turma criarTurma(String nome, String codigo, Integer anoLetivo) {
         Turma turma = Turma.builder()
@@ -49,17 +43,52 @@ public class AdminService {
         return turmaRepository.save(turma);
     }
 
-    /** Soma pontos diretamente ao saldo da turma, sem registrar uma atividade coletiva. */
+    /** NOVO — lista todas as turmas com pontuação e contagem de alunos */
+    @Transactional(readOnly = true)
+    public List<TurmaResumo> listarTurmas() {
+        return turmaRepository.findAll().stream()
+                .map(t -> new TurmaResumo(
+                        t.getId(),
+                        t.getNome(),
+                        t.getCodigo(),
+                        t.getAnoLetivo(),
+                        t.getPontuacaoColetiva() != null ? t.getPontuacaoColetiva().getPontosTotais() : 0,
+                        alunoRepository.countByTurmaId(t.getId())
+                ))
+                .toList();
+    }
+
+    /** NOVO — detalhe de uma turma com lista de alunos */
+    @Transactional(readOnly = true)
+    public TurmaDetalhe detalharTurma(Long turmaId) {
+        Turma turma = turmaRepository.findByIdWithPontuacao(turmaId)
+                .orElseThrow(() -> new ApiException("Turma não encontrada", HttpStatus.NOT_FOUND));
+
+        List<AlunoResumo> alunos = alunoRepository.findByTurmaId(turmaId).stream()
+                .map(a -> new AlunoResumo(a.getId(), a.getNome(), a.getMatricula()))
+                .toList();
+
+        return new TurmaDetalhe(
+                turma.getId(),
+                turma.getNome(),
+                turma.getCodigo(),
+                turma.getAnoLetivo(),
+                turma.getPontuacaoColetiva() != null ? turma.getPontuacaoColetiva().getPontosTotais() : 0,
+                alunos
+        );
+    }
+
     @Transactional
     public void lancarPontosColetivos(Long turmaId, int pontos) {
-        PontuacaoColetiva pc = pontuacaoColetivaRepository.bloquearPorTurma(turmaId)
+        PontuacaoColetiva pc = pontuacaoColetivaRepository.findByTurmaId(turmaId)
                 .orElseThrow(() -> new ApiException("Pontuação da turma não encontrada", HttpStatus.NOT_FOUND));
 
         pc.adicionarPontos(pontos);
         pontuacaoColetivaRepository.save(pc);
     }
 
-    /** Define a turma atual do aluno, preservando seu cadastro e histórico de aprendizagem. */
+    // ── Alunos ──────────────────────────────────────────────────────────────
+
     @Transactional
     public void vincularAlunoTurma(Long turmaId, Long alunoId) {
         Turma turma = turmaRepository.findById(turmaId)
@@ -71,11 +100,20 @@ public class AdminService {
         alunoRepository.save(aluno);
     }
 
-    /** Remove o vínculo somente quando o aluno pertence à turma informada. */
     @Transactional
     public void desvincularAlunoTurma(Long turmaId, Long alunoId) {
         if (alunoRepository.desvincularDaTurma(alunoId, turmaId) == 0) {
             throw new ApiException("Vínculo do aluno com a turma não encontrado", HttpStatus.NOT_FOUND);
         }
+    }
+
+    /** NOVO — lista alunos de uma turma */
+    @Transactional(readOnly = true)
+    public List<AlunoResumo> listarAlunosDaTurma(Long turmaId) {
+        turmaRepository.findById(turmaId)
+                .orElseThrow(() -> new ApiException("Turma não encontrada", HttpStatus.NOT_FOUND));
+        return alunoRepository.findByTurmaId(turmaId).stream()
+                .map(a -> new AlunoResumo(a.getId(), a.getNome(), a.getMatricula()))
+                .toList();
     }
 }

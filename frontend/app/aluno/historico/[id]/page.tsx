@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { api } from "@/lib/api";
 import { mensagemErro, rotaSessoes, useChaveAluno } from "@/lib/estudo";
 import { Indicadores, inicio, Resultado, situacoes } from "@/lib/historico";
-import { formatarPontos } from "@/lib/pontuacao";
 
 function Resumo({ sessao }: { sessao: Indicadores }) {
   return (
@@ -58,21 +57,6 @@ export default function ResultadoPage() {
         </CardHeader><CardContent className="space-y-4">
           {dados.sessao.situacao !== "ENCERRADA" && <p className="font-medium text-indigo-700">Resultado parcial</p>}
           <Resumo sessao={dados.sessao} />
-          <dl className="grid gap-3 border-t border-slate-100 pt-4 text-slate-700 sm:grid-cols-3">
-            {([
-              ["Pontos na sessão", dados.sessao.pontosIndividuais],
-              ["Total no assunto", dados.pontosIndividuaisNoAssunto],
-              ["Total na matéria", dados.pontosIndividuaisNaMateria],
-            ] as const).map(([rotulo, pontos]) => (
-              <div key={rotulo}>
-                <dt className="text-sm">{rotulo}</dt>
-                <dd className="font-semibold text-indigo-700">{formatarPontos(pontos)}</dd>
-              </div>
-            ))}
-          </dl>
-          {dados.sessao.pontosIndividuais != null && !dados.sessao.pontuacaoCompleta && (
-            <p className="text-sm text-slate-600">A pontuação da sessão inclui apenas as respostas com pontos registrados.</p>
-          )}
           {dados.sessao.situacao !== "ENCERRADA" && <Button asChild variant="outline">
             <Link href={`/aluno/atividade/${dados.sessao.id}`}>Abrir atividade</Link></Button>}
         </CardContent></Card>
@@ -102,19 +86,7 @@ export default function ResultadoPage() {
                 ["Erros contabilizados", "erros"], ["Apresentadas", "apresentadas"], ["Respondidas", "respondidas"]] as const).map(([nome, campo]) => (
                 <tr key={campo} className="border-b last:border-0"><th scope="row" className="py-2 font-medium">{nome}</th>
                   <td>{dados.sessao[campo]}</td><td>{dados.anterior?.[campo]}</td></tr>))}
-              {dados.sessao.pontuacaoCompleta && dados.anterior.pontuacaoCompleta &&
-                dados.sessao.pontosIndividuais != null && dados.anterior.pontosIndividuais != null && (
-                <tr><th scope="row" className="py-2 font-medium">Pontos individuais</th>
-                  <td>{formatarPontos(dados.sessao.pontosIndividuais)}</td>
-                  <td>{formatarPontos(dados.anterior.pontosIndividuais)}</td>
-                </tr>
-              )}
             </tbody></table>
-            {dados.sessao.pontosIndividuais != null && !dados.anterior.pontuacaoCompleta && (
-              <p className="text-sm text-slate-600">{dados.anterior.pontosIndividuais == null
-                ? "A sessão anterior não tem pontuação registrada."
-                : "A sessão anterior tem pontuação registrada em parte das respostas."}</p>
-            )}
           </> : <p>Esta é sua primeira sessão concluída neste assunto. Faça outra sessão para acompanhar sua evolução.</p>}</CardContent>
         </Card>
         <Card><CardHeader><h2 className="text-xl font-bold">Questões desta sessão para revisão</h2></CardHeader>
