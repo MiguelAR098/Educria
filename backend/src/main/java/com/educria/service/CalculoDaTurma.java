@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.IntSummaryStatistics;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,36 @@ final class CalculoDaTurma {
 
     record AlunoNaTurma(Long id, String nome) {}
 
+    record Janela(LocalDateTime inicio, LocalDateTime fimExclusivo) {
+        static Janela ate(LocalDate hoje) {
+            return new Janela(hoje.minusDays(JANELA_DIAS).atStartOfDay(), hoje.plusDays(1).atStartOfDay());
+        }
+
+        boolean contem(LocalDateTime data) {
+            return !data.isBefore(inicio) && data.isBefore(fimExclusivo);
+        }
+    }
+
+    static final class MedidasDeAprendizagem {
+        private final IntSummaryStatistics niveisPraticados = new IntSummaryStatistics();
+        private final IntSummaryStatistics variacoes = new IntSummaryStatistics();
+
+        void registrar(Integer nivelFinal, Integer nivelInicial) {
+            if (nivelFinal == null) return;
+            niveisPraticados.accept(nivelFinal);
+            if (nivelInicial != null) variacoes.accept(nivelFinal - nivelInicial);
+        }
+
+        Double nivelMedio() {
+            return niveisPraticados.getCount() == 0 ? null : niveisPraticados.getAverage();
+        }
+
+        Double evolucao30d(int totalAssuntos, boolean respondeuNaJanela) {
+            return !respondeuNaJanela || variacoes.getCount() == 0 ? null
+                    : Math.round((double) variacoes.getSum() / totalAssuntos * 100.0) / 100.0;
+        }
+    }
+
     private CalculoDaTurma() {}
 
     /**
@@ -48,8 +79,7 @@ final class CalculoDaTurma {
     static PanoramaDaTurma calcular(Long turmaId, LocalDate hoje, List<AlunoNaTurma> alunos,
                                     List<AssuntoSimples> assuntos, List<CalculoDoMapa.Registro> niveisAtuais,
                                     List<RespostaNivel> respostas, Map<Long, Integer> revisoesVencidas) {
-        LocalDateTime fimDeHoje = hoje.plusDays(1).atStartOfDay();
-        LocalDateTime inicioDaJanela = hoje.minusDays(JANELA_DIAS).atStartOfDay();
+        Janela janela = Janela.ate(hoje);
 
         Map<String, CalculoDoMapa.Registro> atuais = new HashMap<>();
         niveisAtuais.forEach(r -> atuais.put(r.alunoId() + ":" + r.assuntoId(), r));
@@ -72,10 +102,7 @@ final class CalculoDaTurma {
             Map<Long, List<RespostaNivel>> doAluno = celulas.getOrDefault(aluno.id(), Map.of());
 
             int naJanela = 0;
-            double somaDasVariacoes = 0;
-            double somaDosNiveis = 0;
-            int assuntosPraticados = 0;
-            int assuntosMedidos = 0;
+            var medidas = new MedidasDeAprendizagem();
             Map<String, Integer> erros = new HashMap<>();
 
             for (AssuntoSimples assunto : assuntos) {
@@ -83,31 +110,22 @@ final class CalculoDaTurma {
 
                 CalculoDoMapa.Registro atual = atuais.get(aluno.id() + ":" + assunto.id());
                 Integer nivelFinal = atual != null && atual.respostas() > 0 ? atual.nivel() : null;
-                if (nivelFinal != null) {
-                    assuntosPraticados++;
-                    somaDosNiveis += nivelFinal;
-                    if (nivelFinal <= CalculoDoMapa.NIVEL_BAIXO) {
-                        travados.merge(assunto.id(), 1, Integer::sum);
-                    }
+                if (nivelFinal != null && nivelFinal <= CalculoDoMapa.NIVEL_BAIXO) {
+                    travados.merge(assunto.id(), 1, Integer::sum);
                 }
 
                 List<RespostaNivel> daJanela = cel.stream()
-                        .filter(r -> !r.respondidoEm().isBefore(inicioDaJanela) && r.respondidoEm().isBefore(fimDeHoje))
+                        .filter(r -> janela.contem(r.respondidoEm()))
                         .toList();
                 naJanela += daJanela.size();
                 daJanela.stream().filter(r -> !r.correta()).forEach(r -> erros.merge(assunto.nome(), 1, Integer::sum));
 
-                Integer nivelInicial = nivelInicial(cel, inicioDaJanela);
-                if (nivelFinal != null && nivelInicial != null) {
-                    somaDasVariacoes += nivelFinal - nivelInicial;
-                    assuntosMedidos++;
-                }
+                medidas.registrar(nivelFinal, nivelInicial(cel, janela.inicio()));
             }
 
-            Double evolucao = naJanela == 0 || assuntosMedidos == 0 ? null
-                    : Math.round(somaDasVariacoes / assuntos.size() * 100.0) / 100.0;
+            Double evolucao = medidas.evolucao30d(assuntos.size(), naJanela > 0);
             int vencidas = revisoesVencidas.getOrDefault(aluno.id(), 0);
-            Double nivelMedio = assuntosPraticados == 0 ? null : somaDosNiveis / assuntosPraticados;
+            Double nivelMedio = medidas.nivelMedio();
 
             String nome = primeiroNome(aluno.nome());
             if (evolucao != null && evolucao <= -LIMITE_VARIACAO) {

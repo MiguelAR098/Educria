@@ -49,3 +49,5 @@ logging:
   level:
     com.educria: DEBUG
     org.springframework.security: INFO
+    # Mensagens do driver podem incluir valores de entrada. O handler da API registra a falha sem esses valores.
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: OFF

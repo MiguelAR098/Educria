@@ -2,7 +2,7 @@
 set -euo pipefail
 
 uso() {
-  printf 'Uso: %s --desenvolvimento [--banco educria_demo_<sufixo>]\n' "$0"
+  printf 'Uso: %s --desenvolvimento --banco educria_demo_<sufixo>\n' "$0"
 }
 
 if [[ $# -eq 1 && ( $1 == -h || $1 == --help ) ]]; then
@@ -10,20 +10,11 @@ if [[ $# -eq 1 && ( $1 == -h || $1 == --help ) ]]; then
   exit 0
 fi
 
-if [[ ${1:-} != --desenvolvimento ]]; then
+if [[ $# -ne 3 || $1 != --desenvolvimento || $2 != --banco || ! $3 =~ ^educria_demo_[a-zA-Z0-9_]{1,60}$ ]]; then
   uso >&2
   exit 2
 fi
-shift
-
-banco=educria
-if (( $# > 0 )); then
-  if [[ $# -ne 2 || $1 != --banco || ! $2 =~ ^educria_demo_[a-zA-Z0-9_]{1,60}$ ]]; then
-    uso >&2
-    exit 2
-  fi
-  banco=$2
-fi
+banco=$3
 
 raiz=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 sql="$raiz/backend/src/test/sql"
@@ -36,39 +27,7 @@ arquivos=(
 )
 
 {
-  cat <<'SQL'
-SET NOCOUNT ON;
-SET XACT_ABORT ON;
-SET ANSI_NULLS ON;
-SET ANSI_PADDING ON;
-SET ANSI_WARNINGS ON;
-SET ARITHABORT ON;
-SET CONCAT_NULL_YIELDS_NULL ON;
-SET QUOTED_IDENTIFIER ON;
-SET NUMERIC_ROUNDABORT OFF;
-
-IF DB_NAME() <> N'educria' AND NOT EXISTS (
-    SELECT 1 FROM sys.extended_properties
-    WHERE class = 0 AND name = N'EducriaAmbiente' AND CONVERT(nvarchar(30), value) = N'descartavel'
-)
-    THROW 51100, N'O banco de teste precisa do marcador EducriaAmbiente=descartavel.', 1;
-
-BEGIN TRANSACTION;
-
-DECLARE @bloqueio int;
-EXEC @bloqueio = sys.sp_getapplock @Resource = N'educria.carga_demo_contas',
-    @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 15000;
-IF @bloqueio < 0
-    THROW 51101, N'Não foi possível obter o bloqueio da carga de demonstração.', 1;
-
-CREATE TABLE #demo_turma (id bigint NOT NULL PRIMARY KEY);
-CREATE TABLE #demo_alunos (
-    email nvarchar(100) COLLATE DATABASE_DEFAULT NOT NULL PRIMARY KEY,
-    id bigint NOT NULL,
-    novo bit NOT NULL
-);
-GO
-SQL
+  cat "$raiz/scripts/sqlserver/carga-demo-inicio.sql"
 
   for arquivo in "${arquivos[@]}"; do
     cat "$sql/$arquivo"

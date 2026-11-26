@@ -38,7 +38,7 @@ public class AdminService {
 
     @Transactional
     public void lancarPontosColetivos(Long turmaId, int pontos) {
-        PontuacaoColetiva pc = pontuacaoColetivaRepository.findByTurmaId(turmaId)
+        PontuacaoColetiva pc = pontuacaoColetivaRepository.bloquearPorTurma(turmaId)
                 .orElseThrow(() -> new ApiException("Pontuação da turma não encontrada", HttpStatus.NOT_FOUND));
 
         pc.adicionarPontos(pontos);

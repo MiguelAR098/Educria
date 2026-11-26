@@ -45,12 +45,14 @@ public class RecadoService {
         return paraResposta(recado);
     }
 
-    /** Recados já enviados a um aluno da turma, para o professor acompanhar. */
+    /** Recados do professor autenticado enviados ao aluno da turma. */
     @Transactional(readOnly = true)
     public List<RecadoResponse> doAlunoParaProfessor(String emailProfessor, Long turmaId, Long alunoId) {
         Professor professor = buscarProfessor(emailProfessor);
         alunoDaTurma(professor, turmaId, alunoId);
-        return listar(alunoId);
+        return recadoRepository.doAlunoPorProfessor(alunoId, professor.getId(), PageRequest.of(0, TAMANHO_LISTA)).stream()
+                .map(RecadoService::paraResposta)
+                .toList();
     }
 
     /** Recados do próprio aluno logado. */

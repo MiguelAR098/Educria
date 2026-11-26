@@ -5,7 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -56,10 +55,14 @@ public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> 
 
     /** Para cada questão: {id, total de respostas, total de acertos}. */
     @Query("""
-            select r.questao.id, count(r), sum(case when r.correta = true then 1 else 0 end)
+            select q.id, count(r), sum(cast(case when r.correta = true then 1 else 0 end as Long))
             from RespostaAluno r
-            where r.questao.id in :ids
-            group by r.questao.id
+            join r.questao q join q.assunto a
+            where a.materia.id = :materiaId
+              and (:assuntoId is null or a.id = :assuntoId)
+              and (:questaoId is null or q.id = :questaoId)
+            group by q.id
             """)
-    List<Object[]> estatisticas(@Param("ids") Collection<Long> ids);
+    List<Object[]> estatisticas(@Param("materiaId") Long materiaId, @Param("assuntoId") Long assuntoId,
+                                @Param("questaoId") Long questaoId);
 }

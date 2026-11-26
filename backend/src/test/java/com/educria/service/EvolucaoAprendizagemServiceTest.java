@@ -42,7 +42,7 @@ class EvolucaoAprendizagemServiceTest {
     @Test
     void preencheTrintaDiasLocaisComZeroQuandoNaoHaAtividade() {
         var geral = new Linha(true, null, null, null, 0, 0, 0, 0, 0, 0, 0, 0, 0, null, null);
-        when(repositorio.agregar(42L, null, INICIO, FIM_EXCLUSIVO, ZONA)).thenReturn(List.of(geral));
+        when(repositorio.agregar(42L, null, null, INICIO, FIM_EXCLUSIVO, ZONA)).thenReturn(List.of(geral));
 
         var relatorio = servico.obter(EMAIL, null);
 
@@ -60,7 +60,7 @@ class EvolucaoAprendizagemServiceTest {
         var geral = new Linha(true, null, null, null, 2, 6, 2, 4, 2, 1, 3, 3, 2, null, null);
         var assunto = new Linha(false, 20L, "Frações", null, 2, 6, 2, 4, 2, 1, 3, 3, 2, null, 6);
         var dia = new Linha(false, null, null, INICIO, 0, 6, 2, 4, 2, 1, 3, 3, 2, null, 6);
-        when(repositorio.agregar(42L, null, INICIO, FIM_EXCLUSIVO, ZONA)).thenReturn(List.of(geral, assunto, dia));
+        when(repositorio.agregar(42L, null, null, INICIO, FIM_EXCLUSIVO, ZONA)).thenReturn(List.of(geral, assunto, dia));
 
         var relatorio = servico.obter(EMAIL, null);
 

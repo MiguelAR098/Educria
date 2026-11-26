@@ -2,7 +2,6 @@ package com.educria.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -363,8 +362,8 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         try {
             db.update("update alunos set turma_id=? where usuario_id=?", turma, aluno);
             db.update("insert into pontuacao_coletiva(turma_id,pontos_totais) values (?,37)", turma);
-            var global = (ObjectNode) call(get("/api/aluno/desempenho"), token, 200);
-            assertEquals(0, global.remove("pontosIndividuais").asLong());
+            var inicial = call(get("/api/aluno/desempenho"), token, 200);
+            assertEquals(0, inicial.path("pontosIndividuais").asLong());
             db.update("update desempenho_por_assunto set nivel_atual=6 where aluno_id=? and assunto_id=?", aluno, assunto);
             JsonNode estado = abrir(assunto, 201);
             String sessao = BASE + "/" + estado.at("/sessao/id").asLong();
@@ -386,14 +385,63 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
             var acerto = call(put(rotaResposta(estado)).content(body(Map.of("alternativa", "A"))), token, 200);
             assertNiveis(acerto, 5, 6);
             assertEquals(10, acerto.get("pontosConcedidos").asInt());
-            var atualizado = (ObjectNode) call(get("/api/aluno/desempenho"), token, 200);
-            assertEquals(10, atualizado.remove("pontosIndividuais").asLong());
-            assertEquals(global, atualizado);
+            var atualizado = call(get("/api/aluno/desempenho"), token, 200);
+            assertEquals(10, atualizado.path("pontosIndividuais").asLong());
+            assertEquals(6, atualizado.path("nivelAtual").asInt());
+            assertEquals(1, atualizado.path("totalAcertos").asInt());
+            assertEquals(2, atualizado.path("totalErros").asInt());
+            assertEquals(0, atualizado.path("errosConsecutivos").asInt());
+            assertEquals(1, id("select nivel_atual from desempenho_adaptativo where aluno_id=?", aluno));
+            assertEquals(0, id("select total_acertos + total_erros from desempenho_adaptativo where aluno_id=?", aluno));
             assertEquals(37, id("select pontos_totais from pontuacao_coletiva where turma_id=?", turma));
         } finally {
             db.update("update alunos set turma_id=null where turma_id=?", turma);
             db.update("delete from turmas where id=?", turma);
         }
+    }
+
+    @Test
+    void consultarTurmaSemSaldoRetornaZeroSemCriarRegistro() throws Exception {
+        long aluno = usuarios.getFirst();
+        String rota = "/api/aluno/turma/pontos";
+        var semTurma = call(get(rota), token, 200);
+        assertTrue(semTurma.get("turmaId").isNull());
+        assertEquals(0, semTurma.get("pontosTotais").asInt());
+        long turma = id("insert into turmas(nome) output inserted.id values (?)", prefixo);
+        try {
+            db.update("update alunos set turma_id=? where usuario_id=?", turma, aluno);
+            var semSaldo = call(get(rota), token, 200);
+            assertEquals(turma, semSaldo.get("turmaId").asLong());
+            assertEquals(0, semSaldo.get("pontosTotais").asInt());
+            assertEquals(0, id("select count(*) from pontuacao_coletiva where turma_id=?", turma));
+        } finally {
+            db.update("update alunos set turma_id=null where turma_id=?", turma);
+            db.update("delete from turmas where id=?", turma);
+        }
+    }
+
+    @Test
+    void registraErrosDeDiasDiferentesNaViradaDoRelogioDeEstudo() throws Exception {
+        var inicial = abrir(assunto, 201);
+        long sessao = inicial.at("/sessao/id").asLong();
+        long questao = inicial.at("/questaoAtual/id").asLong();
+        String rota = BASE + "/" + sessao;
+        call(put(rotaResposta(inicial)).content(body(Map.of("alternativa", "B", "passo", 1))), token, 200);
+
+        when(relogio.instant()).thenReturn(Instant.parse("2027-01-01T03:00:00Z"));
+        call(put(rota + "/questoes/2"), token, 200);
+        call(put(rota + "/questoes/3"), token, 200);
+        var repetida = call(put(rota + "/questoes/4"), token, 200);
+        assertEquals(questao, repetida.at("/questaoAtual/id").asLong());
+        call(put(rotaResposta(repetida)).content(body(Map.of("alternativa", "B", "passo", 4))), token, 200);
+
+        assertEquals(List.of("2026-12-31T23:59:59", "2027-01-01T00:00:00"), db.queryForList("""
+                select convert(varchar(19), respondido_em, 126)
+                from respostas_aluno where sessao_id=? order by passo
+                """, String.class, sessao));
+        var resultado = call(get(rota + "/resultado"), token, 200);
+        assertEquals(2, resultado.at("/sessao/erros").asInt());
+        assertEquals(2, resultado.at("/sessao/tentativasIncorretas").asInt());
     }
 
     @Test
@@ -550,6 +598,32 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         db.update("update respostas_aluno set nivel_anterior=null, nivel_atual=null where sessao_id=? and questao_id=?",
                 indicadores.get("id").asLong(), primeira);
         assertTrue(call(get(rota + "/resultado"), token, 200).at("/sessao/nivelAntes").isNull());
+    }
+
+    @Test
+    void questaoDesativadaSaiDasRevisoesSemAlterarResultadoGravado() throws Exception {
+        var inicial = abrir(assunto, 201);
+        long sessao = inicial.at("/sessao/id").asLong();
+        long questao = inicial.at("/questaoAtual/id").asLong();
+        String rota = BASE + "/" + sessao;
+        call(put(rotaResposta(inicial)).content(body(Map.of("alternativa", "A"))), token, 200);
+        assertEquals(questao, call(get(AGENDA), token, 200).at("/futuras/0/questaoId").asLong());
+        assertEquals(questao, call(get(rota + "/resultado"), token, 200).at("/revisoes/0/questaoId").asLong());
+
+        db.update("update questoes set ativa=0 where id=?", questao);
+        var agenda = call(get(AGENDA), token, 200);
+        var resultado = call(get(rota + "/resultado"), token, 200);
+        assertTrue(agenda.get("futuras").isEmpty());
+        assertTrue(agenda.get("pendentes").isEmpty());
+        assertTrue(resultado.get("revisoes").isEmpty());
+        assertTrue(resultado.at("/questoes/0/correta").asBoolean());
+        assertEquals(10, resultado.at("/sessao/pontosIndividuais").asLong());
+        assertEquals(1, id("select count(*) from repeticao_espacada where aluno_id=? and questao_id=?",
+                usuarios.getFirst(), questao));
+
+        db.update("update questoes set ativa=1 where id=?", questao);
+        assertEquals(questao, call(get(AGENDA), token, 200).at("/futuras/0/questaoId").asLong());
+        assertEquals(questao, call(get(rota + "/resultado"), token, 200).at("/revisoes/0/questaoId").asLong());
     }
 
     @Test

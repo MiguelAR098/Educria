@@ -128,7 +128,7 @@ public class HistoricoSessaoRepository {
                 join questoes q on q.id = r.questao_id
                 join atividades a on a.id = q.atividade_id
                 join repeticao_espacada rep on rep.questao_id = q.id and rep.aluno_id = s.aluno_id
-                where u.email = :email and s.id = :id and cast(a.ativa as integer) = 1
+                where u.email = :email and s.id = :id and a.ativa = 1 and q.ativa = 1
                   and q.assunto_id is not null and q.dificuldade is not null
                 order by rep.proxima_revisao, q.id
                 """).param("email", email).param("id", id).query(Revisao.class).list();

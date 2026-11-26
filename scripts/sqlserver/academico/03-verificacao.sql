@@ -1,3 +1,8 @@
+IF DB_NAME() NOT LIKE N'educria[_]sqlserver[_]teste[_]%'
+    OR NOT EXISTS (SELECT 1 FROM sys.extended_properties
+                   WHERE class=0 AND name=N'EducriaAmbiente' AND CONVERT(nvarchar(30),value)=N'descartavel')
+    THROW 51019, N'A verificação acadêmica exige banco descartável identificado.', 1;
+
 DECLARE @contagem TABLE(tabela sysname PRIMARY KEY, total bigint);
 INSERT @contagem
 SELECT N'usuarios', COUNT_BIG(*) FROM dbo.usuarios UNION ALL
@@ -18,8 +23,14 @@ SELECT N'sessao_questoes', COUNT_BIG(*) FROM dbo.sessao_questoes UNION ALL
 SELECT N'respostas_aluno', COUNT_BIG(*) FROM dbo.respostas_aluno UNION ALL
 SELECT N'repeticao_espacada', COUNT_BIG(*) FROM dbo.repeticao_espacada UNION ALL
 SELECT N'atividades_coletivas', COUNT_BIG(*) FROM dbo.atividades_coletivas UNION ALL
-SELECT N'recados', COUNT_BIG(*) FROM dbo.recados;
+SELECT N'recados', COUNT_BIG(*) FROM dbo.recados UNION ALL
+SELECT N'grupos_pedagogicos', COUNT_BIG(*) FROM dbo.grupos_pedagogicos UNION ALL
+SELECT N'grupo_turmas', COUNT_BIG(*) FROM dbo.grupo_turmas UNION ALL
+SELECT N'grupo_participacoes', COUNT_BIG(*) FROM dbo.grupo_participacoes;
 SELECT tabela,total FROM @contagem ORDER BY tabela;
+IF EXISTS (SELECT 1 FROM sys.tables t WHERE SCHEMA_NAME(t.schema_id)=N'dbo' AND t.name<>N'flyway_schema_history'
+           AND NOT EXISTS (SELECT 1 FROM @contagem c WHERE c.tabela=t.name))
+    THROW 51032, N'Inclua todas as tabelas do domínio na verificação acadêmica.', 1;
 IF EXISTS (SELECT 1 FROM @contagem WHERE total < 3)
     THROW 51010, N'Uma tabela do domínio não atingiu três registros.', 1;
 IF EXISTS (
@@ -70,3 +81,25 @@ INSERT @resumo EXEC dbo.educria_sp_resumo_turma @turma=@idTurma;
 IF NOT EXISTS (SELECT 1 FROM @resumo WHERE pontos_publicos=20 AND atividades=1 AND pontos_lancados=20)
     THROW 51018, N'A procedure deveria retornar uma atividade pública de vinte pontos.', 1;
 SELECT turma,pontos_publicos,atividades,pontos_lancados FROM @resumo;
+
+IF NOT EXISTS (SELECT 1 FROM dbo.grupo_turmas GROUP BY grupo_id HAVING COUNT(*)>=2)
+   OR NOT EXISTS (SELECT 1 FROM dbo.grupo_participacoes WHERE saida_em IS NULL GROUP BY aluno_id HAVING COUNT(*)>=2)
+    THROW 51033, N'A prova acadêmica dos relacionamentos N:N dos grupos está incompleta.', 1;
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes
+               WHERE object_id=OBJECT_ID(N'dbo.grupo_participacoes')
+                 AND name=N'ux_grupo_participacao_ativa' AND is_unique=1 AND has_filter=1 AND is_disabled=0)
+   OR EXISTS (SELECT 1 FROM sys.foreign_keys
+              WHERE parent_object_id IN (OBJECT_ID(N'dbo.grupos_pedagogicos'),OBJECT_ID(N'dbo.grupo_turmas'),
+                    OBJECT_ID(N'dbo.grupo_participacoes')) AND delete_referential_action<>0)
+    THROW 51035, N'Os grupos exigem unicidade de vínculo aberto e FKs sem cascata.', 1;
+
+SELECT g.nome AS iniciativa,g.tipo,COUNT(p.id) AS participantes_historicos
+FROM dbo.grupos_pedagogicos g LEFT JOIN dbo.grupo_participacoes p ON p.grupo_id=g.id
+GROUP BY g.id,g.nome,g.tipo ORDER BY g.id;
+
+DECLARE @pontosIndividuais bigint = (SELECT SUM(CONVERT(bigint,r.pontos_individuais))
+                                    FROM dbo.respostas_aluno r WHERE r.aluno_id=@idAluno);
+IF COALESCE(@pontosIndividuais,-1)<>6
+    THROW 51036, N'A recuperação individual de nível 1 deve valer seis pontos.', 1;
+SELECT @idAluno AS aluno_id,@pontosIndividuais AS pontos_individuais;

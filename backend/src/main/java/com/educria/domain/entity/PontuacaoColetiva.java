@@ -1,8 +1,10 @@
 package com.educria.domain.entity;
 
+import com.educria.exception.ApiException;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
 
@@ -38,6 +40,9 @@ public class PontuacaoColetiva {
 
     public void adicionarPontos(int pontos) {
         if (pontos > 0) {
+            if (pontosTotais > Integer.MAX_VALUE - pontos) {
+                throw new ApiException("O limite de pontos coletivos da turma seria excedido", HttpStatus.CONFLICT);
+            }
             this.pontosTotais += pontos;
         }
     }

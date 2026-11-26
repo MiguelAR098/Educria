@@ -14,6 +14,18 @@ import java.util.Optional;
 
 public interface AlunoRepository extends JpaRepository<Aluno, Long> {
 
+    interface Identificacao {
+        Long getId();
+        String getNome();
+    }
+
+    interface CadastroNaTurma extends Identificacao {
+        String getMatricula();
+    }
+
+    @Query("select a.id as id, a.nome as nome from Aluno a where a.turma.id = :turmaId")
+    List<Identificacao> identificarAlunosDaTurma(@Param("turmaId") Long turmaId);
+
     Optional<Aluno> findByEmail(String email);
 
     @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.turma WHERE a.id = :id")
@@ -25,17 +37,16 @@ public interface AlunoRepository extends JpaRepository<Aluno, Long> {
 
     List<Aluno> findByTurmaId(Long turmaId);
 
-    long countByTurmaId(Long turmaId);
+    @Query("""
+            select a.id as id, a.nome as nome, a.matricula as matricula
+            from Aluno a where a.turma.id = :turmaId and (:alunoId is null or a.id = :alunoId)
+            order by a.nome
+            """)
+    List<CadastroNaTurma> cadastrosNaTurma(@Param("turmaId") Long turmaId, @Param("alunoId") Long alunoId);
 
     Optional<Aluno> findByIdAndTurmaId(Long id, Long turmaId);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(value = "update dbo.alunos set turma_id = null where usuario_id = :alunoId and turma_id = :turmaId", nativeQuery = true)
     int desvincularDaTurma(@Param("alunoId") Long alunoId, @Param("turmaId") Long turmaId);
-
-    @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.desempenhoAdaptativo WHERE a.turma.id = :turmaId ORDER BY a.nome")
-    List<Aluno> findByTurmaIdComDesempenho(@Param("turmaId") Long turmaId);
-
-    @Query("SELECT a FROM Aluno a LEFT JOIN FETCH a.desempenhoAdaptativo WHERE a.id = :alunoId AND a.turma.id = :turmaId")
-    Optional<Aluno> findByIdAndTurmaIdComDesempenho(@Param("alunoId") Long alunoId, @Param("turmaId") Long turmaId);
 }

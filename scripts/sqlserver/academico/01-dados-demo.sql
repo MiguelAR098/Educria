@@ -4,13 +4,24 @@ IF DB_NAME() NOT LIKE N'educria[_]sqlserver[_]teste[_]%'
     THROW 51000, N'A alimentação exige banco descartável identificado.', 1;
 IF @HashDemo IS NULL OR LEN(@HashDemo) <> 60 OR LEFT(@HashDemo,4) NOT IN (N'$2a$',N'$2b$',N'$2y$')
     THROW 51001, N'Forneça um hash BCrypt para os usuários de demonstração.', 1;
-IF EXISTS (SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'EducriaDemonstracao')
-    RETURN;
-IF EXISTS (SELECT 1 FROM dbo.usuarios) OR EXISTS (SELECT 1 FROM dbo.turmas) OR EXISTS (SELECT 1 FROM dbo.atividades)
-    THROW 51002, N'Use um banco recém-migrado, contendo apenas o catálogo inicial.', 1;
+IF NOT EXISTS (SELECT 1 FROM dbo.flyway_schema_history WHERE version=N'5' AND success=1)
+    THROW 51003, N'Aplique pelo Flyway as migrations de V1 a V5 antes da carga acadêmica.', 1;
 
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;
+DECLARE @bloqueio int;
+EXEC @bloqueio = sys.sp_getapplock @Resource=N'educria.carga_academica', @LockMode='Exclusive',
+    @LockOwner='Transaction', @LockTimeout=15000;
+IF @bloqueio < 0 THROW 51004, N'Não foi possível obter o bloqueio da carga acadêmica.', 1;
+
+IF EXISTS (SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'EducriaDemonstracao')
+BEGIN
+    COMMIT;
+    RETURN;
+END;
+IF EXISTS (SELECT 1 FROM dbo.usuarios) OR EXISTS (SELECT 1 FROM dbo.turmas) OR EXISTS (SELECT 1 FROM dbo.atividades)
+    THROW 51002, N'Use um banco recém-migrado, contendo apenas o catálogo inicial.', 1;
+
 DECLARE @dados TABLE (
     n int PRIMARY KEY, assunto nvarchar(100), enunciado nvarchar(200),
     a nvarchar(30), b nvarchar(30), c nvarchar(30), d nvarchar(30), explicacao nvarchar(200)
@@ -74,12 +85,12 @@ UPDATE s SET questao_retomada_id=e.questao
 FROM dbo.sessoes_estudo s JOIN @estudo e ON e.sessao=s.id WHERE e.n=1;
 -- A única pendência criada nesta demonstração é resolvida na segunda resposta.
 INSERT dbo.respostas_aluno(aluno_id,questao_id,sessao_id,passo,resposta_dada,correta,reaprender,
-                           respondido_em,nivel_anterior,nivel_atual)
-SELECT aluno,questao,sessao,1,N'B',0,1,DATEADD(second,1,@respondido),1,1 FROM @estudo WHERE n=1;
+                           respondido_em,nivel_anterior,nivel_atual,pontos_individuais)
+SELECT aluno,questao,sessao,1,N'B',0,1,DATEADD(second,1,@respondido),1,1,0 FROM @estudo WHERE n=1;
 INSERT dbo.respostas_aluno(aluno_id,questao_id,sessao_id,passo,resposta_dada,correta,
-                           respondido_em,nivel_anterior,nivel_atual)
+                           respondido_em,nivel_anterior,nivel_atual,pontos_individuais)
 SELECT aluno,questao,sessao,CASE WHEN n=1 THEN 2 ELSE 1 END,N'A',1,
-       DATEADD(second,2,@respondido),1,CASE WHEN n=1 THEN 1 ELSE 2 END FROM @estudo;
+       DATEADD(second,2,@respondido),1,CASE WHEN n=1 THEN 1 ELSE 2 END,CASE WHEN n=1 THEN 6 ELSE 10 END FROM @estudo;
 UPDATE d SET nivel_atual=CASE WHEN e.n=1 THEN 1 ELSE 2 END,
     erros_consecutivos=CASE WHEN e.n=1 THEN 1 ELSE 0 END,
     total_erros=CASE WHEN e.n=1 THEN 1 ELSE 0 END, total_acertos=CASE WHEN e.n=1 THEN 0 ELSE 1 END, versao=1
@@ -87,5 +98,28 @@ FROM dbo.desempenho_por_assunto d JOIN @estudo e ON d.aluno_id=e.aluno AND d.ass
 INSERT dbo.repeticao_espacada(aluno_id,questao_id,proxima_revisao,ultima_revisao)
 SELECT aluno,questao,DATEADD(day,1,CONVERT(date,DATEADD(second,2,@respondido))),CONVERT(date,DATEADD(second,2,@respondido))
 FROM @estudo;
+
+-- Iniciativas do professor. A segunda turma de DEMO1 e a entrada repetida de aluno2 mostram os dois N:N.
+DECLARE @grupos TABLE (id bigint PRIMARY KEY, professor bigint);
+INSERT dbo.grupos_pedagogicos(professor_id,nome,descricao,tipo,criado_em,arquivado_em)
+OUTPUT inserted.id, inserted.professor_id INTO @grupos
+SELECT professor,CONCAT(N'Iniciativa de Matemática ',n),N'Acompanhamento pedagógico',
+       CASE WHEN n=2 THEN N'PROJETO' ELSE N'GRUPO' END,@inicio,
+       CASE WHEN n=3 THEN DATEADD(hour,12,@inicio) END
+FROM @vinculos;
+
+INSERT dbo.grupo_turmas(grupo_id,turma_id)
+SELECT g.id,p.turma FROM @grupos g JOIN @vinculos p ON p.professor=g.professor
+UNION ALL
+SELECT g.id,t.turma FROM @grupos g JOIN @vinculos p ON p.professor=g.professor
+CROSS JOIN @vinculos t WHERE p.n=1 AND t.n=2;
+
+INSERT dbo.grupo_participacoes(grupo_id,aluno_id,turma_origem_id,entrada_em,saida_em)
+SELECT g.id,v.aluno,v.turma,DATEADD(hour,1,@inicio),CASE WHEN v.n=3 THEN DATEADD(hour,12,@inicio) END
+FROM @grupos g JOIN @vinculos v ON v.professor=g.professor
+UNION ALL
+SELECT g.id,t.aluno,t.turma,DATEADD(hour,1,@inicio),NULL
+FROM @grupos g JOIN @vinculos p ON p.professor=g.professor CROSS JOIN @vinculos t WHERE p.n=1 AND t.n=2;
+
 EXEC sys.sp_addextendedproperty @name=N'EducriaDemonstracao', @value=N'1';
 COMMIT;

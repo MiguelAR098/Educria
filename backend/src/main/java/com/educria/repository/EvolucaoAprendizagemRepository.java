@@ -39,6 +39,10 @@ public class EvolucaoAprendizagemRepository {
                 where r.aluno_id = :alunoId and r.respondido_em >= :inicioResposta and r.respondido_em < :fimResposta
                   and (r.sessao_id is null or s.id is not null)
                   and (:assuntoId is null or coalesce(s.assunto_id, q.assunto_id) = :assuntoId)
+                  and (:materiaId is null or exists (
+                      select 1 from assuntos assunto
+                      where assunto.id = coalesce(s.assunto_id, q.assunto_id) and assunto.materia_id = :materiaId
+                  ))
             ), eventos as (
                 select s.assunto_id, cast(null as date) as dia, cast(null as bigint) as questao_id,
                        cast(null as integer) as correta, 0 as erro_contabilizado, cast(null as integer) as primeira,
@@ -47,6 +51,9 @@ public class EvolucaoAprendizagemRepository {
                 from sessoes_estudo s
                 where s.aluno_id = :alunoId and s.iniciada_em >= :inicioSessao and s.iniciada_em < :fimSessao
                   and (:assuntoId is null or s.assunto_id = :assuntoId)
+                  and (:materiaId is null or exists (
+                      select 1 from assuntos assunto where assunto.id = s.assunto_id and assunto.materia_id = :materiaId
+                  ))
                 union all
                 select assunto_id, dia, questao_id, correta, erro_contabilizado, primeira,
                        nivel_anterior, nivel_atual, inicio_nivel, fim_nivel
@@ -71,10 +78,11 @@ public class EvolucaoAprendizagemRepository {
             order by a.id, e.dia
             """;
 
-    public List<Linha> agregar(long alunoId, Long assuntoId, LocalDate inicio, LocalDate fimExclusivo, ZoneId zona) {
+    public List<Linha> agregar(long alunoId, Long assuntoId, Long materiaId, LocalDate inicio, LocalDate fimExclusivo, ZoneId zona) {
         return jdbc.sql(AGREGAR)
                 .param("alunoId", alunoId)
                 .param("assuntoId", assuntoId, Types.BIGINT)
+                .param("materiaId", materiaId, Types.BIGINT)
                 // A sessão guarda um instante, enquanto a resposta guarda a hora local do módulo do aluno.
                 .param("inicioSessao", inicio.atStartOfDay(zona).toOffsetDateTime())
                 .param("fimSessao", fimExclusivo.atStartOfDay(zona).toOffsetDateTime())

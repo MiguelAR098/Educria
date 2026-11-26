@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import lombok.ToString;
 
 @Data
 public class RegisterAlunoRequest {
@@ -14,12 +15,15 @@ public class RegisterAlunoRequest {
 
     @NotBlank(message = "E-mail é obrigatório")
     @Email
+    @Size(max = 100)
     private String email;
 
     @NotBlank(message = "Senha é obrigatória")
     @Size(min = 6, message = "Senha deve ter no mínimo 6 caracteres")
+    @ToString.Exclude
     private String senha;
 
+    @Size(max = 30)
     private String matricula;
 
     private Long turmaId; // opcional no cadastro

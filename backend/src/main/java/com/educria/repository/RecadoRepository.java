@@ -20,6 +20,15 @@ public interface RecadoRepository extends JpaRepository<Recado, Long> {
             """)
     List<Recado> doAluno(@Param("alunoId") Long alunoId, Pageable pagina);
 
+    @Query("""
+            select r from Recado r
+            join fetch r.professor p
+            where r.aluno.id = :alunoId and p.id = :professorId
+            order by r.criadoEm desc, r.id desc
+            """)
+    List<Recado> doAlunoPorProfessor(@Param("alunoId") Long alunoId, @Param("professorId") Long professorId,
+                                     Pageable pagina);
+
     long countByAlunoIdAndLidoEmIsNull(Long alunoId);
 
     @Modifying

@@ -2,7 +2,8 @@ package com.educria.domain.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -49,7 +50,8 @@ public class RespostaAluno {
     private Integer passo;
     private boolean reaprender;
 
-    @CreationTimestamp
-    @Column(name = "respondido_em", updatable = false)
+    // datetime2 conserva a hora local de estudo para as contagens por dia.
+    @JdbcTypeCode(SqlTypes.LOCAL_DATE_TIME)
+    @Column(name = "respondido_em", nullable = false, updatable = false)
     private LocalDateTime respondidoEm;
 }

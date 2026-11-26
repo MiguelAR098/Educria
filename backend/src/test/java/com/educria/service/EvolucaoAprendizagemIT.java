@@ -2,9 +2,12 @@ package com.educria.service;
 
 import com.educria.domain.entity.Admin;
 import com.educria.domain.entity.Aluno;
+import com.educria.domain.entity.Materia;
+import com.educria.domain.entity.Professor;
 import com.educria.domain.entity.Usuario;
 import com.educria.domain.enums.Perfil;
 import com.educria.dto.AssuntoDoAluno;
+import com.educria.dto.DetalheDoAluno;
 import com.educria.dto.MateriaResumo;
 import com.educria.dto.RelatorioEvolucao;
 import com.educria.dto.RelatorioEvolucao.Dia;
@@ -13,6 +16,7 @@ import com.educria.repository.UsuarioRepository;
 import com.educria.security.JwtService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,6 +73,38 @@ class EvolucaoAprendizagemIT extends IntegracaoSqlServer {
     @Autowired private ObjectMapper json;
     @Autowired private JdbcTemplate db;
     @Autowired private JwtService jwt;
+    @Autowired private EntityManager entidades;
+
+    @Test
+    void recortaEvolucaoDoProfessorSemAlterarEvolucaoDoTitular() throws Exception {
+        var titular = aluno();
+        long turma = id("insert dbo.turmas(nome) output inserted.id values (N'Turma de teste')");
+        db.update("update dbo.alunos set turma_id=? where usuario_id=?", turma, titular.id());
+        long materia = materia();
+        long assuntoProprio = assunto(materia, "Frações");
+        long assuntoDeOutraMateria = assunto("Leitura");
+        var professor = usuario(Professor.builder().perfil(Perfil.PROFESSOR)
+                .materia(entidades.getReference(Materia.class, materia)));
+        db.update("insert dbo.professor_turmas(professor_id,turma_id) values (?,?)", professor.id(), turma);
+        long propria = sessao(titular, assuntoProprio, "2026-12-20T12:00:00Z");
+        long outra = sessao(titular, assuntoDeOutraMateria, "2026-12-21T12:00:00Z");
+        long questaoPropria = questao(assuntoProprio);
+        long questaoDeOutraMateria = questao(assuntoDeOutraMateria);
+        apresentar(propria, questaoPropria);
+        apresentar(outra, questaoDeOutraMateria);
+        responder(titular, propria, questaoPropria, 1, true, "2026-12-20T09:01:00", 1, 2);
+        responder(titular, outra, questaoDeOutraMateria, 1, false, "2026-12-21T09:01:00", 1, 1);
+        db.update("update dbo.questoes set assunto_id=? where id=?", assuntoDeOutraMateria, questaoPropria);
+        entidades.clear();
+
+        var detalhe = lerJson(get("/api/professor/turmas/{turma}/alunos/{aluno}", turma, titular.id()),
+                professor, DetalheDoAluno.class);
+        var evolucao = detalhe.evolucao();
+        assertTotais(evolucao, 1, 1, 1, 0, 0, 1, 0, "100.00");
+        assertEquals(1, evolucao.evolucaoDiaria().stream().mapToLong(Dia::tentativas).sum());
+        assertEquals(List.of(assuntoProprio), evolucao.assuntos().stream().map(RelatorioEvolucao.Assunto::assuntoId).toList());
+        assertEquals(2, ler(get(ROTA), titular).resumo().tentativas());
+    }
 
     @Test
     void alunoSemSessoesRecebeTrintaDiasZerados() throws Exception {

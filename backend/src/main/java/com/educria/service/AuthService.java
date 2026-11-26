@@ -21,9 +21,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.charset.StandardCharsets;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
+
+    private static final int LIMITE_BYTES_BCRYPT = 72;
 
     private final UsuarioRepository usuarioRepository;
     private final AlunoRepository alunoRepository;
@@ -34,7 +38,10 @@ public class AuthService {
 
     @Transactional
     public AuthResponse registerAluno(RegisterAlunoRequest request) {
-        if (usuarioRepository.existsByEmail(request.getEmail())) {
+        if (request.getSenha().getBytes(StandardCharsets.UTF_8).length > LIMITE_BYTES_BCRYPT) {
+            throw new ApiException("Senha deve ter no máximo 72 bytes em UTF-8", HttpStatus.BAD_REQUEST);
+        }
+        if (usuarioRepository.existeEmailParaCadastro(request.getEmail())) {
             throw new ApiException("E-mail já cadastrado", HttpStatus.CONFLICT);
         }
 

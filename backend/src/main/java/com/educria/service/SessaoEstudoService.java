@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.HashMap;
@@ -145,16 +147,18 @@ public class SessaoEstudoService {
         var desempenho = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assunto.getId())
                 .orElseGet(() -> new DesempenhoPorAssunto(aluno, assunto));
         int nivelAnterior = desempenho.getNivelAtual();
+        // O diagnóstico vigente é por assunto. O registro global permanece como legado, sem uma segunda progressão.
         if (!sessao.repetindo()) {
             desempenho.registrarResposta(correta);
             desempenhos.save(desempenho);
         }
         int nivelAtual = desempenho.getNivelAtual();
 
+        var respondidoEm = LocalDateTime.now(relogio).truncatedTo(ChronoUnit.MICROS);
         var salva = respostas.save(RespostaAluno.builder().passo(sessao.getPasso()).reaprender(!correta).aluno(aluno).sessao(sessao).questao(questao)
                 .respostaDada(alternativa).correta(correta).pontosIndividuais(pontos)
-                .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).build());
-        agenda.registrar(aluno, questao, correta);
+                .nivelAnterior(nivelAnterior).nivelAtual(nivelAtual).respondidoEm(respondidoEm).build());
+        agenda.registrar(aluno, questao, correta, respondidoEm.toLocalDate());
         return feedback(salva, id);
     }
 

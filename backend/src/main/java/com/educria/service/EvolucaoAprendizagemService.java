@@ -36,16 +36,16 @@ public class EvolucaoAprendizagemService {
     public RelatorioEvolucao obter(String email, Long assuntoId) {
         var aluno = alunos.findByEmail(email)
                 .orElseThrow(() -> new ApiException("Aluno não encontrado", HttpStatus.NOT_FOUND));
-        return montar(aluno.getId(), assuntoId);
+        return montar(aluno.getId(), assuntoId, null);
     }
 
-    /** Mesmo relatório, para consulta por outro perfil (professor). A autorização é de quem chama. */
+    /** O chamador autoriza o aluno e determina a matéria a partir do professor. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public RelatorioEvolucao obterDoAluno(Long alunoId, Long assuntoId) {
-        return montar(alunoId, assuntoId);
+    public RelatorioEvolucao obterPorMateria(Long alunoId, long materiaId) {
+        return montar(alunoId, null, materiaId);
     }
 
-    private RelatorioEvolucao montar(Long alunoId, Long assuntoId) {
+    private RelatorioEvolucao montar(Long alunoId, Long assuntoId, Long materiaId) {
         if (assuntoId != null && assuntos.findById(assuntoId).isEmpty()) {
             throw new ApiException("Assunto não encontrado", HttpStatus.NOT_FOUND);
         }
@@ -53,7 +53,7 @@ public class EvolucaoAprendizagemService {
         var hoje = LocalDate.now(relogio);
         var inicio = hoje.minusDays(DIAS - 1);
         var fimExclusivo = hoje.plusDays(1);
-        var linhas = evolucao.agregar(alunoId, assuntoId, inicio, fimExclusivo, relogio.getZone());
+        var linhas = evolucao.agregar(alunoId, assuntoId, materiaId, inicio, fimExclusivo, relogio.getZone());
         var resumo = linhas.stream().filter(Linha::geral).findFirst()
                 .map(geral -> new Resumo(geral.sessoesIniciadas(), geral.tentativas(), geral.acertos(),
                         geral.tentativasIncorretas(), geral.erros(), geral.questoesUnicas(), geral.tentativasReaprendizagem(), taxa(geral)))

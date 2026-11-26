@@ -102,6 +102,51 @@ class CoberturaBancoQuestoesIT extends IntegracaoSqlServer {
     }
 
     @Test
+    void exportaGabaritoMinusculoEIgnoraQuestaoLegadaIncompleta() throws Exception {
+        long materia = materia("Português");
+        String token = professor(materia);
+        long assunto = cadastrarAssunto(materia, "Interpretação para exportação");
+        long atividade = cadastrarAtividade(true);
+        inserirQuestao(atividade, assunto, 2, true, "A", null);
+        db.update("""
+                insert dbo.questoes(atividade_id,assunto_id,dificuldade,enunciado,
+                    alternativa_a,alternativa_b,alternativa_c,alternativa_d,resposta_correta)
+                values (?,?,2,N'Qual alternativa é uma palavra?',N'1',N'livro',N'2',N'3',N'b')
+                """, atividade, assunto);
+
+        JsonNode exportadas = api(get(QUESTOES + "/exportar"), token, null, 200);
+        assertEquals(1, exportadas.size());
+        assertEquals("Interpretação para exportação", exportadas.at("/0/conceito").asText());
+        assertEquals(1, exportadas.at("/0/correta").asInt(-1));
+        assertEquals("livro", exportadas.at("/0/alts/1").asText());
+        assertEquals(2, id("select count_big(*) from dbo.questoes where assunto_id=?", assunto));
+    }
+
+    @Test
+    void listaMaisDeDoisMilECemIdsComEstatisticasDeRespostas() throws Exception {
+        long materia = materia("Português");
+        String token = professor(materia);
+        long assunto = cadastrarAssunto(materia, "Banco para estatísticas");
+        long atividade = cadastrarAtividade(true);
+        db.update("""
+                insert dbo.questoes(atividade_id,assunto_id,dificuldade,enunciado,resposta_correta)
+                select top (2101) ?,?,4,N'Questão de validação de volume',N'A'
+                from sys.all_objects a cross join sys.all_objects b
+                """, atividade, assunto);
+        long questao = id("select min(id) from dbo.questoes where assunto_id=?", assunto);
+        long aluno = api(post("/api/auth/register"), null, Map.of("nome", "Estudante", "email", emailDeTeste(),
+                "senha", segredoTemporario()), 201).path("id").asLong();
+        db.update("insert dbo.respostas_aluno(aluno_id,questao_id,correta) values (?,?,1)", aluno, questao);
+
+        JsonNode listagem = api(get(QUESTOES).param("assuntoId", Long.toString(assunto)), token, null, 200).path("questoes");
+        assertEquals(2101, listagem.size());
+        assertEquals(questao, listagem.at("/0/id").asLong());
+        assertEquals(1, listagem.at("/0/totalRespostas").asLong());
+        assertEquals(100, listagem.at("/0/taxaAcerto").asDouble());
+        assertEquals(0, listagem.at("/1/totalRespostas").asLong(-1));
+    }
+
+    @Test
     void refleteCadastroEdicaoAtivacaoImportacaoENovosAssuntos() throws Exception {
         String token = professor(materia("Português"));
         JsonNode antes = cobertura(token);
@@ -148,18 +193,113 @@ class CoberturaBancoQuestoesIT extends IntegracaoSqlServer {
     }
 
     @Test
-    void reproduzADistribuicaoDasOitentaQuestoesOriginais() throws Exception {
+    void preencheAsDezDificuldadesEmBaseSemCargaERepetirNaoDuplica() throws Exception {
         String token = professor(materia("Matemática"));
+        assertEquals(0, id("select count_big(*) from dbo.questoes"));
         assertTrue(db.queryForObject("select @@TRANCOUNT", Integer.class) > 0);
-        var seed = new ClassPathResource("db/sqlserver/demo/afterMigrate__questoes_de_matematica.sql");
-        db.execute(seed.getContentAsString(StandardCharsets.UTF_8));
+        String seed = cargaDemo();
+        db.execute(seed);
+        var ids = db.queryForList("select id from dbo.questoes where atividade_id=-1 order by ordem", Long.class);
+        db.execute(seed);
+        assertEquals(ids, db.queryForList("select id from dbo.questoes where atividade_id=-1 order by ordem", Long.class));
+        assertEquals(160, ids.size());
+        assertEquals(160, id("select count_big(distinct ordem) from dbo.questoes where atividade_id=-1"));
+        assertEquals("1/6", db.queryForObject("select alternativa_c from dbo.questoes where atividade_id=-1 and ordem=26",
+                String.class));
+        assertTrue(db.queryForObject("select enunciado from dbo.questoes where atividade_id=-1 and ordem=71",
+                String.class).contains("3 fatias cada uma"));
+        assertTrue(db.queryForObject("select enunciado from dbo.questoes where atividade_id=-1 and ordem=140",
+                String.class).contains("guardou toda a sobra"));
 
         JsonNode matriz = cobertura(token);
         assertEquals(8, matriz.path("assuntos").size());
-        assertTotais(matriz, 80, 40);
+        assertTotais(matriz, 160, 0);
         for (JsonNode assunto : matriz.path("assuntos")) {
-            assertLinha(matriz, assunto.path("id").asLong(), 2, 2, 2, 2, 2, 0, 0, 0, 0, 0);
+            assertLinha(matriz, assunto.path("id").asLong(), 2, 2, 2, 2, 2, 2, 2, 2, 2, 2);
         }
+    }
+
+    @Test
+    void ampliaCargaOriginalSemAlterarEdicoesInativasOuHistorico() throws Exception {
+        String seed = cargaDemo();
+        String original = seed.substring(0, seed.indexOf("    -- Ampliação nas dificuldades"))
+                .replace("N'2/6', N'3/4', N'1/6'", "N'2/6', N'3/4', N'1/3'")
+                .replace("3 fatias cada uma.", "3 fatias.")
+                .replace("São 16 fatias. As cinco pessoas comem 5 × 3 = 15 fatias.", "São 16 fatias e 15 foram comidas.");
+        db.execute(original
+                + seed.substring(seed.indexOf("    DECLARE @materia bigint")));
+        assertEquals(80, id("select count_big(*) from dbo.questoes where atividade_id=-1"));
+        db.update("update dbo.questoes set ativa=0, enunciado=N'Enunciado preservado' where atividade_id=-1 and ordem=1");
+        long questao = id("select id from dbo.questoes where atividade_id=-1 and ordem=2");
+        long assunto = id("select assunto_id from dbo.questoes where id=?", questao);
+        long aluno = api(post("/api/auth/register"), null, Map.of("nome", "Estudante", "email", emailDeTeste(),
+                "senha", segredoTemporario()), 201).path("id").asLong();
+        long sessao = id("""
+                insert dbo.sessoes_estudo(aluno_id,assunto_id,situacao,iniciada_em,atualizada_em)
+                output inserted.id values (?,?,'ENCERRADA',sysdatetimeoffset(),sysdatetimeoffset())
+                """, aluno, assunto);
+        db.update("insert dbo.sessao_questoes(sessao_id,indice,questao_id) values (?,0,?)", sessao, questao);
+        db.update("""
+                insert dbo.respostas_aluno(aluno_id,questao_id,sessao_id,passo,resposta_dada,correta,pontos_individuais)
+                values (?,?,?,1,N'C',1,10)
+                """, aluno, questao, sessao);
+        db.update("insert dbo.repeticao_espacada(aluno_id,questao_id,intervalo_atual,proxima_revisao) values (?,?,'D1','2030-01-01')",
+                aluno, questao);
+
+        String originais = "select * from dbo.questoes where atividade_id=-1 and ordem between 1 and 80 order by ordem";
+        var antesQuestoes = db.queryForList(originais);
+        var antesRespostas = db.queryForList("select * from dbo.respostas_aluno where sessao_id=?", sessao);
+        var antesRevisoes = db.queryForList("select * from dbo.repeticao_espacada where aluno_id=?", aluno);
+        db.execute(seed);
+        db.execute(seed);
+        assertEquals(160, id("select count_big(*) from dbo.questoes where atividade_id=-1"));
+        assertEquals(antesQuestoes, db.queryForList(originais));
+        assertEquals(antesRespostas, db.queryForList("select * from dbo.respostas_aluno where sessao_id=?", sessao));
+        assertEquals(antesRevisoes, db.queryForList("select * from dbo.repeticao_espacada where aluno_id=?", aluno));
+        assertTotais(cobertura(professor(materia("Matemática"))), 159, 0);
+    }
+
+    @Test
+    void selecionaEPontuaAsDificuldadesAltasEmSessoesReais() throws Exception {
+        db.execute(cargaDemo());
+        JsonNode cadastro = api(post("/api/auth/register"), null, Map.of("nome", "Estudante", "email", emailDeTeste(),
+                "senha", segredoTemporario()), 201);
+        String token = cadastro.path("token").asText();
+        long aluno = cadastro.path("id").asLong();
+        List<Long> assuntos = db.queryForList("select id from dbo.assuntos where materia_id=? order by id", Long.class,
+                materia("Matemática"));
+        String sessoes = "/api/aluno/sessoes";
+        int soma = 0;
+        for (int dificuldade = 6; dificuldade <= 10; dificuldade++) {
+            long assunto = assuntos.get(dificuldade - 6);
+            db.update("update dbo.desempenho_por_assunto set nivel_atual=? where aluno_id=? and assunto_id=?",
+                    dificuldade, aluno, assunto);
+            JsonNode estado = api(post(sessoes), token, Map.of("assuntoId", assunto), 201);
+            JsonNode questao = estado.path("questaoAtual");
+            assertEquals(dificuldade, questao.path("dificuldade").asInt());
+            assertFalse(questao.has("respostaCorreta"));
+            assertFalse(questao.has("explicacao"));
+            long questaoId = questao.path("id").asLong();
+            assertEquals(1, id("select count_big(*) from dbo.questoes where id=? and atividade_id=-1 and ordem>80", questaoId));
+            String letra = db.queryForObject("select resposta_correta from dbo.questoes where id=?", String.class, questaoId);
+            String sessao = sessoes + "/" + estado.at("/sessao/id").asLong();
+            JsonNode feedback = api(put(sessao + "/questoes/" + questaoId + "/resposta"), token,
+                    Map.of("passo", 1, "alternativa", letra), 200);
+            assertTrue(feedback.path("correta").asBoolean());
+            int pontos = dificuldade * 10;
+            soma += pontos;
+            assertEquals(pontos, feedback.path("pontosConcedidos").asInt());
+            assertEquals(Math.min(dificuldade + 1, 10), feedback.path("nivelAtual").asInt());
+            assertEquals(1, id("select count_big(*) from dbo.repeticao_espacada where aluno_id=? and questao_id=?", aluno, questaoId));
+            api(put(sessao + "/encerrar"), token, null, 200);
+            assertEquals(pontos, api(get(sessao + "/resultado"), token, null, 200).at("/sessao/pontosIndividuais").asInt());
+        }
+        assertEquals(soma, api(get("/api/aluno/desempenho"), token, null, 200).path("pontosIndividuais").asInt());
+    }
+
+    private static String cargaDemo() throws Exception {
+        return new ClassPathResource("db/sqlserver/demo/afterMigrate__questoes_de_matematica.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
     }
 
     private JsonNode cobertura(String token) throws Exception {

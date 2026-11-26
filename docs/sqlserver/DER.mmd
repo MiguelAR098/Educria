@@ -1,0 +1,229 @@
+erDiagram
+    usuarios ||--o| alunos : especializa
+    usuarios ||--o| professores : especializa
+    usuarios ||--o| admins : especializa
+    materias ||..o{ professores : atribui
+    materias ||..o{ assuntos : oferece
+    turmas o|..o{ alunos : vincula
+    turmas ||--o{ professor_turmas : inclui
+    professores ||--o{ professor_turmas : leciona
+    alunos ||..o| desempenho_adaptativo : possui
+    alunos ||..o{ desempenho_por_assunto : possui
+    assuntos ||..o{ desempenho_por_assunto : mede
+    turmas ||..o| pontuacao_coletiva : acumula
+    atividades ||..o{ questoes : contem
+    assuntos o|..o{ questoes : classifica
+    professores o|..o{ questoes : escreve
+    alunos ||..o{ sessoes_estudo : inicia
+    assuntos ||..o{ sessoes_estudo : contextualiza
+    sessoes_estudo ||--o{ sessao_questoes : apresenta
+    questoes ||..o{ sessao_questoes : integra
+    sessao_questoes o|..o{ sessoes_estudo : permite_retomada
+    alunos ||..o{ respostas_aluno : envia
+    questoes ||..o{ respostas_aluno : recebe
+    sessoes_estudo o|..o{ respostas_aluno : registra
+    sessao_questoes o|..o{ respostas_aluno : autoriza
+    alunos ||..o{ repeticao_espacada : agenda
+    atividades o|..o{ repeticao_espacada : agenda_legada
+    questoes o|..o{ repeticao_espacada : agenda
+    turmas ||..o{ atividades_coletivas : participa
+    professores o|..o{ atividades_coletivas : registra
+    alunos ||..o{ recados : recebe
+    professores ||..o{ recados : envia
+    professores ||..o{ grupos_pedagogicos : responde_por
+    grupos_pedagogicos ||--|{ grupo_turmas : delimita
+    turmas ||--o{ grupo_turmas : contextualiza
+    grupo_turmas ||..o{ grupo_participacoes : preserva_origem
+    alunos ||..o{ grupo_participacoes : participa
+
+    usuarios {
+        bigint id PK
+        nvarchar(100) email UK
+        nvarchar(100) nome
+        nvarchar(255) senha
+        nvarchar(20) perfil
+        bit ativo
+        datetime2(6) criado_em
+        datetime2(6) atualizado_em
+    }
+
+    turmas {
+        bigint id PK
+        nvarchar(100) nome
+        nvarchar(20) codigo
+        int ano_letivo
+        datetime2(6) criado_em
+    }
+
+    materias {
+        bigint id PK
+        nvarchar(100) nome UK
+    }
+
+    assuntos {
+        bigint id PK
+        bigint materia_id FK
+        nvarchar(100) nome
+    }
+
+    alunos {
+        bigint usuario_id PK, FK
+        nvarchar(30) matricula
+        bigint turma_id FK
+    }
+
+    admins {
+        bigint usuario_id PK, FK
+    }
+
+    professores {
+        bigint usuario_id PK, FK
+        bigint materia_id FK
+    }
+
+    professor_turmas {
+        bigint professor_id PK, FK
+        bigint turma_id PK, FK
+    }
+
+    desempenho_adaptativo {
+        bigint id PK
+        bigint aluno_id FK, UK
+        int nivel_atual
+        int erros_consecutivos
+        int total_acertos
+        int total_erros
+        datetime2(6) atualizado_em
+    }
+
+    desempenho_por_assunto {
+        bigint id PK
+        bigint aluno_id FK
+        bigint assunto_id FK
+        int nivel_atual
+        int erros_consecutivos
+        int total_acertos
+        int total_erros
+        bigint versao
+    }
+
+    pontuacao_coletiva {
+        bigint id PK
+        bigint turma_id FK, UK
+        int pontos_totais
+        datetime2(6) atualizado_em
+    }
+
+    atividades {
+        bigint id PK
+        nvarchar(200) titulo
+        nvarchar(max) enunciado
+        int nivel_recomendado
+        bit ativa
+        datetime2(6) criado_em
+    }
+
+    questoes {
+        bigint id PK
+        bigint atividade_id FK
+        nvarchar(max) enunciado
+        nvarchar(500) alternativa_a
+        nvarchar(500) alternativa_b
+        nvarchar(500) alternativa_c
+        nvarchar(500) alternativa_d
+        nvarchar(1) resposta_correta
+        int ordem
+        bigint assunto_id FK
+        int dificuldade
+        nvarchar(max) explicacao
+        bit ativa
+        bigint autor_id FK
+    }
+
+    sessoes_estudo {
+        bigint id PK, FK
+        bigint aluno_id FK
+        bigint assunto_id FK
+        nvarchar(16) situacao
+        datetimeoffset(6) iniciada_em
+        datetimeoffset(6) atualizada_em
+        int revisoes_apresentadas
+        int passo
+        bigint questao_retomada_id FK
+    }
+
+    sessao_questoes {
+        bigint sessao_id PK, FK
+        int indice PK
+        bigint questao_id FK
+    }
+
+    repeticao_espacada {
+        bigint id PK
+        bigint aluno_id FK
+        bigint atividade_id FK
+        nvarchar(10) intervalo_atual
+        date proxima_revisao
+        date ultima_revisao
+        datetime2(6) atualizado_em
+        bigint questao_id FK
+    }
+
+    respostas_aluno {
+        bigint id PK
+        bigint aluno_id FK
+        bigint questao_id FK
+        nvarchar(1) resposta_dada
+        bit correta
+        datetime2(6) respondido_em
+        bigint sessao_id FK
+        int nivel_anterior
+        int nivel_atual
+        int passo
+        bit reaprender
+        int pontos_individuais "NULL para respostas legadas"
+    }
+
+    atividades_coletivas {
+        bigint id PK
+        bigint turma_id FK
+        bigint professor_id FK
+        nvarchar(20) tipo
+        nvarchar(120) titulo
+        int pontos
+        nvarchar(300) resumo
+        datetime2(6) criado_em
+    }
+
+    recados {
+        bigint id PK "IDENTITY(1000,10)"
+        bigint aluno_id FK
+        bigint professor_id FK
+        nvarchar(500) texto
+        datetime2(6) criado_em
+        datetime2(6) lido_em
+    }
+
+    grupos_pedagogicos {
+        bigint id PK
+        bigint professor_id FK
+        nvarchar(120) nome
+        nvarchar(1000) descricao
+        nvarchar(10) tipo
+        datetimeoffset(6) criado_em
+        datetimeoffset(6) arquivado_em
+    }
+
+    grupo_turmas {
+        bigint grupo_id PK, FK
+        bigint turma_id PK, FK
+    }
+
+    grupo_participacoes {
+        bigint id PK
+        bigint grupo_id FK
+        bigint aluno_id FK
+        bigint turma_origem_id FK
+        datetimeoffset(6) entrada_em
+        datetimeoffset(6) saida_em
+    }

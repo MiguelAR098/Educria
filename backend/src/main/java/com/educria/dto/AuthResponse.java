@@ -5,6 +5,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 @Data
 @Builder
@@ -12,9 +13,17 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuthResponse {
 
+    @ToString.Exclude
     private String token;
     private Long id;
     private String nome;
     private String email;
     private Perfil perfil;
+
+    public static class AuthResponseBuilder {
+        @Override
+        public String toString() {
+            return "AuthResponseBuilder";
+        }
+    }
 }

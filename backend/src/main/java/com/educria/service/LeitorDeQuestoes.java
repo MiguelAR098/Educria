@@ -33,7 +33,7 @@ final class LeitorDeQuestoes {
         }
 
         JsonNode dificuldade = item.get("dificuldade");
-        if (dificuldade == null || !dificuldade.isIntegralNumber()
+        if (dificuldade == null || !dificuldade.isIntegralNumber() || !dificuldade.canConvertToInt()
                 || dificuldade.asInt() < 1 || dificuldade.asInt() > 10) {
             throw new IllegalArgumentException("dificuldade precisa ser um número inteiro de 1 a 10");
         }
@@ -75,7 +75,8 @@ final class LeitorDeQuestoes {
     }
 
     private static String letraCorreta(JsonNode correta) {
-        if (correta != null && correta.isIntegralNumber() && correta.asInt() >= 0 && correta.asInt() <= 3) {
+        if (correta != null && correta.isIntegralNumber() && correta.canConvertToInt()
+                && correta.asInt() >= 0 && correta.asInt() <= 3) {
             return String.valueOf(LETRAS.charAt(correta.asInt()));
         }
         if (correta != null && correta.isTextual()) {

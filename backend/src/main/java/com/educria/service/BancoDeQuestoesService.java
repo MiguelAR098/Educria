@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -65,7 +66,7 @@ public class BancoDeQuestoesService {
             questoes = bancoRepository.doAssunto(assuntoId);
         }
 
-        Map<Long, long[]> uso = estatisticas(questoes);
+        Map<Long, long[]> uso = questoes.isEmpty() ? Map.of() : estatisticas(materia.getId(), assuntoId, null);
         return new BancoDeQuestoes(
                 materia.getNome(),
                 assuntos.stream().map(a -> new AssuntoSimples(a.getId(), a.getNome())).toList(),
@@ -120,7 +121,7 @@ public class BancoDeQuestoesService {
         Assunto assunto = assuntoDaMateria(assuntoRepository.daMateria(professor.getMateria().getId()), request.assuntoId());
 
         preencher(questao, assunto, request);
-        return paraResposta(questao, estatisticas(List.of(questao)).get(questaoId));
+        return paraResposta(questao, estatisticas(professor.getMateria().getId(), null, questaoId).get(questaoId));
     }
 
     @Transactional
@@ -129,23 +130,30 @@ public class BancoDeQuestoesService {
         Questao questao = questaoDaMateria(professor, questaoId);
 
         questao.setAtiva(ativa);
-        return paraResposta(questao, estatisticas(List.of(questao)).get(questaoId));
+        return paraResposta(questao, estatisticas(professor.getMateria().getId(), null, questaoId).get(questaoId));
     }
 
-    /** Questões ativas da matéria no formato do JSON de importação (serve como cópia de segurança). */
+    /** Questões ativas da matéria com alternativas e gabarito no formato de importação. */
     @Transactional(readOnly = true)
     public List<QuestaoExportada> exportar(String email) {
         Professor professor = buscarProfessor(email);
         return bancoRepository.daMateria(professor.getMateria().getId()).stream()
-                .filter(q -> q.isAtiva() && q.getDificuldade() != null)
+                .filter(BancoDeQuestoesService::exportavel)
                 .map(q -> new QuestaoExportada(
                         q.getAssunto().getNome(),
                         q.getDificuldade(),
                         q.getEnunciado(),
                         List.of(q.getAlternativaA(), q.getAlternativaB(), q.getAlternativaC(), q.getAlternativaD()),
-                        "ABCD".indexOf(q.getRespostaCorreta()),
+                        "ABCD".indexOf(q.getRespostaCorreta().toUpperCase(Locale.ROOT)),
                         q.getExplicacao()))
                 .toList();
+    }
+
+    private static boolean exportavel(Questao questao) {
+        return questao.isAtiva() && questao.getDificuldade() != null
+                && LETRAS.contains(questao.getRespostaCorreta().toUpperCase(Locale.ROOT))
+                && Stream.of(questao.getAlternativaA(), questao.getAlternativaB(), questao.getAlternativaC(),
+                        questao.getAlternativaD()).noneMatch(alternativa -> alternativa == null || alternativa.isBlank());
     }
 
     /**
@@ -273,12 +281,9 @@ public class BancoDeQuestoesService {
     }
 
     /** Para cada questão: {total de respostas, total de acertos}. */
-    private Map<Long, long[]> estatisticas(List<Questao> questoes) {
+    private Map<Long, long[]> estatisticas(Long materiaId, Long assuntoId, Long questaoId) {
         Map<Long, long[]> uso = new HashMap<>();
-        if (questoes.isEmpty()) {
-            return uso;
-        }
-        for (Object[] linha : bancoRepository.estatisticas(questoes.stream().map(Questao::getId).toList())) {
+        for (Object[] linha : bancoRepository.estatisticas(materiaId, assuntoId, questaoId)) {
             long total = ((Number) linha[1]).longValue();
             long acertos = linha[2] == null ? 0 : ((Number) linha[2]).longValue();
             uso.put(((Number) linha[0]).longValue(), new long[]{total, acertos});

@@ -36,7 +36,7 @@ class SqlServerIT extends IntegracaoSqlServer {
 
     @Test
     void flywayValidaEsquemaComAIdentidadeEOCatalogo() {
-        assertEquals(4, id("select count(*) from dbo.flyway_schema_history where success=1 and version in ('1','2','3','4')"));
+        assertEquals(5, id("select count(*) from dbo.flyway_schema_history where success=1 and version in ('1','2','3','4','5')"));
         assertEquals(1, id("""
                 select count(*) from sys.columns
                 where object_id=object_id('dbo.respostas_aluno') and name='pontos_individuais'

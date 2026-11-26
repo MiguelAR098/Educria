@@ -72,4 +72,16 @@ class LeitorDeQuestoesTest {
     void recusaItemQueNaoEUmObjeto() throws Exception {
         assertThrows(IllegalArgumentException.class, () -> LeitorDeQuestoes.ler(json("\"texto solto\""), ASSUNTOS));
     }
+
+    @Test
+    void recusaNumerosInteirosQueSoFicariamValidosAposTruncamento() {
+        assertThrows(IllegalArgumentException.class, () -> LeitorDeQuestoes.ler(json("""
+                {"conceito":"porcentagem","dificuldade":4294967297,"enunciado":"x",
+                 "alts":["a","b","c","d"],"correta":0}
+                """), ASSUNTOS));
+        assertThrows(IllegalArgumentException.class, () -> LeitorDeQuestoes.ler(json("""
+                {"conceito":"porcentagem","dificuldade":1,"enunciado":"x",
+                 "alts":["a","b","c","d"],"correta":18446744073709551616}
+                """), ASSUNTOS));
+    }
 }

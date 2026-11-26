@@ -27,7 +27,7 @@ public interface RepeticaoEspacadaRepository extends JpaRepository<RepeticaoEspa
     @Query("""
             select new com.educria.dto.RevisaoDoAluno(q.id, q.enunciado, q.assunto.nome, r.proximaRevisao, r.intervaloAtual)
             from RepeticaoEspacada r join r.questao q
-            where r.aluno.id = :alunoId and q.atividade.ativa = true and q.dificuldade is not null
+            where r.aluno.id = :alunoId and q.atividade.ativa = true and q.ativa = true and q.dificuldade is not null
             order by r.proximaRevisao, q.id
             """)
     List<RevisaoDoAluno> agenda(Long alunoId);
