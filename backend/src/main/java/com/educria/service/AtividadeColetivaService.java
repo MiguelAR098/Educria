@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
+/** Coordena o registro e a consulta das atividades nas turmas em que o professor leciona. */
 @Service
 @RequiredArgsConstructor
 public class AtividadeColetivaService {
@@ -31,7 +32,10 @@ public class AtividadeColetivaService {
     private final PontuacaoColetivaRepository pontuacaoRepository;
     private final AtividadeColetivaRepository atividadeRepository;
 
-    /** Registra a atividade e soma os pontos à pontuação coletiva da turma. */
+    /**
+     * Persiste a atividade e soma seus pontos ao saldo da turma na mesma transação.
+     * O bloqueio da pontuação existente serializa lançamentos concorrentes para a mesma turma.
+     */
     @Transactional
     public AtividadeColetivaResponse lancar(String email, Long turmaId, LancarAtividadeRequest request) {
         if (!PONTOS_VALIDOS.contains(request.pontos())) {
@@ -57,6 +61,10 @@ public class AtividadeColetivaService {
         return paraResposta(atividade);
     }
 
+    /**
+     * Retorna o saldo acumulado e as até 50 atividades mais recentes da turma autorizada.
+     * Lançamentos administrativos podem alterar o saldo sem aparecer nessa lista.
+     */
     @Transactional(readOnly = true)
     public HistoricoDeAtividades historico(String email, Long turmaId) {
         Professor professor = buscarProfessor(email);

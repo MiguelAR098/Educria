@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+/** Verifica os agregados por HTTP, usando dados SQL de teste revertidos pela transação da classe. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
@@ -39,6 +40,7 @@ class IndicadoresDoGrupoIT extends IntegracaoSqlServer {
 
     @Test
     void usaAsTurmasEAJanelaDoPanoramaSemDuplicarNemExporEstudantes() throws Exception {
+        // Há vínculos sobrepostos, transferências, turma externa e grupo arquivado para exercitar o recorte.
         long turmaA = turma("Turma A");
         long turmaB = turma("Turma B");
         long externa = turma("Turma externa");

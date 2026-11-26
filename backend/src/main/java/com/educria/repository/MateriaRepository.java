@@ -9,10 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
+/** Projeta o catálogo e os pontos registrados do aluno para exibição por matéria e assunto. */
 public interface MateriaRepository extends Repository<Materia, Long> {
 
     boolean existsById(Long id);
 
+    /** Inclui matérias sem assuntos e usa a classificação da sessão histórica para somar os pontos. */
     @Query("""
             select new com.educria.dto.MateriaResumo(m.id, m.nome, count(s.id), coalesce((
                 select sum(cast(r.pontosIndividuais as Long)) from RespostaAluno r join r.sessao historica

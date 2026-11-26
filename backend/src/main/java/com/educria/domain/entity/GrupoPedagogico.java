@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 
+/** Representa um grupo ou projeto criado por um professor para uma ou mais de suas turmas. */
 @Entity
 @Table(name = "grupos_pedagogicos")
 @Getter
@@ -31,6 +32,7 @@ public class GrupoPedagogico {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Vários grupos podem pertencer ao mesmo professor. A chave estrangeira fica na tabela do grupo. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "professor_id", nullable = false, updatable = false)
     private Professor professor;
@@ -50,6 +52,7 @@ public class GrupoPedagogico {
 
     private Instant arquivadoEm;
 
+    /** A tabela de junção registra onde o grupo atua. Os alunos participantes têm vínculos próprios. */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(name = "grupo_turmas", joinColumns = @JoinColumn(name = "grupo_id"),
             inverseJoinColumns = @JoinColumn(name = "turma_id"))
@@ -70,6 +73,7 @@ public class GrupoPedagogico {
         this.descricao = descricao;
     }
 
+    /** Registra o arquivamento uma única vez, na data de criação ou em data posterior. */
     public void arquivar(Instant agora) {
         if (arquivadoEm == null) arquivadoEm = agora.isBefore(criadoEm) ? criadoEm : agora;
     }

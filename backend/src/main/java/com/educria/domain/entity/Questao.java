@@ -4,6 +4,11 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
+/**
+ * Item persistido do banco de questões. A atividade é obrigatória e o assunto pode faltar em
+ * registros antigos. O estudo exibe {@link com.educria.dto.QuestaoParaAluno}, que omite o gabarito
+ * e a explicação. {@code @JsonIgnore} também restringe a serialização direta desses campos.
+ */
 @Entity
 @Table(name = "questoes")
 @Getter
@@ -65,6 +70,7 @@ public class Questao {
     @JoinColumn(name = "autor_id")
     private Professor autor;
 
+    /** Resolve a letra para o texto correspondente, retornando {@code null} para uma letra desconhecida ou sem texto. */
     public String textoAlternativa(String letra) {
         return switch (letra) {
             case "A" -> alternativaA;

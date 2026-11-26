@@ -3,6 +3,8 @@ IF DB_NAME() NOT LIKE N'educria[_]sqlserver[_]teste[_]%'
                    WHERE class=0 AND name=N'EducriaAmbiente' AND CONVERT(nvarchar(30),value)=N'descartavel')
     THROW 51019, N'A verificação acadêmica exige banco descartável identificado.', 1;
 
+-- UNION ALL reúne uma contagem por tabela, inclusive as vazias. COUNT_BIG
+-- retorna bigint. O catálogo de sistema confirma a cobertura e as PKs.
 DECLARE @contagem TABLE(tabela sysname PRIMARY KEY, total bigint);
 INSERT @contagem
 SELECT N'usuarios', COUNT_BIG(*) FROM dbo.usuarios UNION ALL
@@ -41,6 +43,8 @@ IF EXISTS (
     THROW 51011, N'Tabela do domínio sem PK.', 1;
 IF IDENT_SEED(N'dbo.recados') <> 1000 OR IDENT_INCR(N'dbo.recados') <> 10
     THROW 51012, N'Autonumeração dos recados fora do domínio previsto.', 1;
+-- CROSS JOIN monta todos os pares aluno/assunto esperados. A linha ausente
+-- em desempenho por assunto vira NULL no LEFT JOIN e evidencia uma falha na carga ou no gatilho.
 IF EXISTS (SELECT 1 FROM dbo.alunos a CROSS JOIN dbo.assuntos s LEFT JOIN dbo.desempenho_por_assunto d
            ON d.aluno_id=a.usuario_id AND d.assunto_id=s.id WHERE d.id IS NULL)
     THROW 51013, N'O trigger deveria preencher os níveis dos novos alunos.', 1;
@@ -61,6 +65,8 @@ SELECT IDENT_SEED(N'dbo.recados') AS inicio, IDENT_INCR(N'dbo.recados') AS incre
 FROM dbo.recados r;
 
 -- Aliases, três JOINs e as cinco agregações exigidas, sobre pontuação pública.
+-- O JOIN com professor_turmas confere o vínculo entre autor e turma. A conversão
+-- para decimal preserva a fração da média de pontos, que são inteiros na tabela.
 SELECT t.codigo AS turma, COUNT(a.id) AS atividades, SUM(a.pontos) AS pontos,
        AVG(CONVERT(decimal(8,2),a.pontos)) AS media, MAX(a.pontos) AS maximo, MIN(a.pontos) AS minimo
 FROM dbo.atividades_coletivas a
@@ -76,6 +82,7 @@ IF COALESCE(dbo.educria_fn_erros_diarios(@idAluno,@dia),0) <> 1
 SELECT @dia AS dia, dbo.educria_fn_erros_diarios(@idAluno,@dia) AS erros_diarios;
 
 DECLARE @idTurma bigint = (SELECT id FROM dbo.turmas WHERE codigo=N'DEMO1');
+-- INSERT EXEC guarda o resultado tabular da procedure para conferir seus valores.
 DECLARE @resumo TABLE(turma nvarchar(100),pontos_publicos int,atividades int,pontos_lancados int);
 INSERT @resumo EXEC dbo.educria_sp_resumo_turma @turma=@idTurma;
 IF NOT EXISTS (SELECT 1 FROM @resumo WHERE pontos_publicos=20 AND atividades=1 AND pontos_lancados=20)
@@ -94,6 +101,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes
                     OBJECT_ID(N'dbo.grupo_participacoes')) AND delete_referential_action<>0)
     THROW 51035, N'Os grupos exigem unicidade de vínculo aberto e FKs sem cascata.', 1;
 
+-- Cada linha de participação conta no histórico, inclusive as que têm data de saída.
 SELECT g.nome AS iniciativa,g.tipo,COUNT(p.id) AS participantes_historicos
 FROM dbo.grupos_pedagogicos g LEFT JOIN dbo.grupo_participacoes p ON p.grupo_id=g.id
 GROUP BY g.id,g.nome,g.tipo ORDER BY g.id;

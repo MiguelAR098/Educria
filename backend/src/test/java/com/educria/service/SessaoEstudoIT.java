@@ -27,6 +27,10 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
+/**
+ * Exercita a API com Spring Security, Flyway e SQL Server. {@code @AutoConfigureMockMvc} disponibiliza
+ * requisições simuladas ao controller e aos filtros sem abrir uma porta HTTP.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @EnabledIfEnvironmentVariable(named = IntegracaoSqlServer.VARIAVEL_URL, matches = ".+")
@@ -43,6 +47,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
     private long materia, assunto, vazio, atividade;
     private String token;
 
+    /** Prepara dados próprios de cada teste e fixa o relógio na virada do dia de estudo. */
     @BeforeEach
     void preparar() throws Exception {
         when(relogio.getZone()).thenReturn(FUSO);
@@ -68,6 +73,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         db.update("delete from materias where id=?", materia);
     }
 
+    /** Requisições de titulares diferentes devem ter resultados distintos para o mesmo identificador. */
     @Test
     void isolaTodasAsOperacoesPeloJwt() throws Exception {
         JsonNode estado = abrir(assunto, 201);
@@ -280,6 +286,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         assertEquals(2, id("select count(*) from respostas_aluno where sessao_id=?", sessao));
     }
 
+    /** Disputa o mesmo passo com alternativas diferentes e verifica o resultado também no banco. */
     @Test
     void enviosConcorrentesPreservamUmaUnicaResposta() throws Exception {
         JsonNode inicio = abrir(assunto, 201);
@@ -303,6 +310,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
                 usuarios.getFirst(), assunto));
     }
 
+    /** Garante que o reenvio conserve o valor gravado mesmo depois de uma edição na dificuldade da questão. */
     @Test
     void reenviosConcorrentesConservamPontosOriginaisAposEdicaoEPausa() throws Exception {
         var estado = abrir(assunto, 201);
@@ -465,6 +473,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         assertEquals(1, id("select total_acertos from desempenho_por_assunto where aluno_id=? and assunto_id=?", aluno, assunto));
     }
 
+    /** Uma restrição SQL força a falha e comprova que a tentativa, o nível e a agenda são atômicos. */
     @Test
     void falhaNaGravacaoDoDesempenhoReverteTambemAResposta() throws Exception {
         long aluno = usuarios.getFirst();
@@ -481,6 +490,7 @@ class SessaoEstudoIT extends IntegracaoSqlServer {
         assertEquals(Integer.MAX_VALUE, id("select total_acertos from desempenho_por_assunto where aluno_id=? and assunto_id=?", aluno, assunto));
     }
 
+    /** Avança o dia pelo relógio de teste para observar o vencimento, o teto e o retorno a D1 após reaprender. */
     @Test
     void agendaPorQuestaoRespeitaViradaLocalIntervalosEReenvio() throws Exception {
         db.update("delete from questoes where atividade_id=? and id<>(select min(id) from questoes where atividade_id=?)",

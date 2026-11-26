@@ -23,6 +23,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * Orquestra cadastro de alunos e login. {@code @Service} torna esta classe um componente do Spring.
+ * {@code @RequiredArgsConstructor} gera o construtor dos campos finais para a injeção de dependências.
+ */
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -36,8 +40,15 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
 
+    /**
+     * Cria o aluno e seu diagnóstico inicial na mesma transação, com turma opcional.
+     *
+     * @param request dados validados pelo controller e complementados pelas verificações de cadastro
+     * @return identidade pública da conta para o cliente e o JWT da sessão
+     */
     @Transactional
     public AuthResponse registerAluno(RegisterAlunoRequest request) {
+        // O limite do BCrypt é em bytes UTF-8. Caracteres acentuados podem ocupar mais de um byte.
         if (request.getSenha().getBytes(StandardCharsets.UTF_8).length > LIMITE_BYTES_BCRYPT) {
             throw new ApiException("Senha deve ter no máximo 72 bytes em UTF-8", HttpStatus.BAD_REQUEST);
         }
@@ -81,6 +92,7 @@ public class AuthService {
                 .build();
     }
 
+    /** Solicita a validação da conta ao Spring Security antes de emitir um novo JWT. */
     public AuthResponse login(LoginRequest request) {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getEmail(), request.getSenha())

@@ -14,6 +14,10 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
+/**
+ * Guarda um intervalo de participação de um aluno em um grupo.
+ * A entidade de vínculo permite registrar a turma de origem e as datas de entrada e saída.
+ */
 @Entity
 @Table(name = "grupo_participacoes")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -30,6 +34,7 @@ public class ParticipacaoGrupo {
     @JoinColumn(name = "aluno_id", nullable = false, updatable = false)
     private Aluno aluno;
 
+    /** Preserva a turma registrada na entrada mesmo que o aluno mude de turma posteriormente. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "turma_origem_id", nullable = false, updatable = false)
     private Turma turmaOrigem;
@@ -46,6 +51,7 @@ public class ParticipacaoGrupo {
         this.entradaEm = entradaEm;
     }
 
+    /** Encerra um vínculo vigente sem reescrever a data de um vínculo já encerrado. */
     public void sair(Instant agora) {
         if (saidaEm == null) saidaEm = agora.isBefore(entradaEm) ? entradaEm : agora;
     }

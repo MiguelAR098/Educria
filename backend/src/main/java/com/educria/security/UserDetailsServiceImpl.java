@@ -12,6 +12,10 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * Adapta a entidade de domínio ao contrato {@link UserDetailsService} do Spring Security.
+ * O provedor de login e o filtro JWT dependem da interface, e o Spring injeta esta implementação.
+ */
 @Service
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
@@ -23,6 +27,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuário não encontrado: " + email));
 
+        // hasRole consulta a autoridade ROLE_<perfil>. O hash fica disponível para a comparação interna do login.
         return new User(
                 usuario.getEmail(),
                 usuario.getSenha(),

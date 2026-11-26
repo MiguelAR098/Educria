@@ -25,6 +25,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
+/** Configura o acesso HTTP por perfil e registra os componentes de autenticação do Spring Security. */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -34,6 +35,10 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserDetailsService userDetailsService;
 
+    /**
+     * Define a cadeia de filtros como um bean do Spring. A política sem sessão faz cada requisição
+     * protegida depender do JWT. A titularidade de turmas, sessões e outros recursos é verificada nos serviços.
+     */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -55,6 +60,7 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** Combina a busca de contas por e-mail com o comparador BCrypt usado no login. */
     @Bean
     public AuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();

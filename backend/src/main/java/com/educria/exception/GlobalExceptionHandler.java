@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+/** Centraliza a tradução de erros dos controllers para respostas HTTP com mensagens públicas. */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
@@ -51,6 +52,7 @@ public class GlobalExceptionHandler {
         return buildResponse("Confira os parâmetros da requisição.", HttpStatus.BAD_REQUEST);
     }
 
+    /** Retorna por campo as mensagens de validação do DTO, preservando apenas o nome do campo e a regra violada. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();

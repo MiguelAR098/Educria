@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import lombok.ToString;
 
+/** Corpo do login. O controller aciona as restrições de Bean Validation com {@code @Valid}. */
 @Data
 public class LoginRequest {
 

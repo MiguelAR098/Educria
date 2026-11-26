@@ -12,6 +12,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Mantém turmas, vínculos de alunos e o saldo coletivo nas operações do perfil administrativo.
+ * O Spring Security aplica a permissão de perfil na entrada HTTP.
+ */
 @Service
 @RequiredArgsConstructor
 public class AdminService {
@@ -20,6 +24,15 @@ public class AdminService {
     private final PontuacaoColetivaRepository pontuacaoColetivaRepository;
     private final AlunoRepository alunoRepository;
 
+    /**
+     * Cria a turma com pontuação inicial de zero. A transação permite que turma e saldo
+     * sejam gravados juntos ou revertidos em caso de falha.
+     *
+     * @param nome nome de exibição da turma
+     * @param codigo código usado para identificar a turma nas consultas
+     * @param anoLetivo ano do cadastro, distinto da série escolar
+     * @return turma persistida com a pontuação vinculada
+     */
     @Transactional
     public Turma criarTurma(String nome, String codigo, Integer anoLetivo) {
         Turma turma = Turma.builder()
@@ -36,6 +49,7 @@ public class AdminService {
         return turmaRepository.save(turma);
     }
 
+    /** Soma pontos diretamente ao saldo da turma, sem registrar uma atividade coletiva. */
     @Transactional
     public void lancarPontosColetivos(Long turmaId, int pontos) {
         PontuacaoColetiva pc = pontuacaoColetivaRepository.bloquearPorTurma(turmaId)
@@ -45,6 +59,7 @@ public class AdminService {
         pontuacaoColetivaRepository.save(pc);
     }
 
+    /** Define a turma atual do aluno, preservando seu cadastro e histórico de aprendizagem. */
     @Transactional
     public void vincularAlunoTurma(Long turmaId, Long alunoId) {
         Turma turma = turmaRepository.findById(turmaId)
@@ -56,6 +71,7 @@ public class AdminService {
         alunoRepository.save(aluno);
     }
 
+    /** Remove o vínculo somente quando o aluno pertence à turma informada. */
     @Transactional
     public void desvincularAlunoTurma(Long turmaId, Long alunoId) {
         if (alunoRepository.desvincularDaTurma(alunoId, turmaId) == 0) {

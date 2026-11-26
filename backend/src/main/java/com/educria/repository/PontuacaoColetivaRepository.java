@@ -12,7 +12,7 @@ import java.util.Optional;
 public interface PontuacaoColetivaRepository extends JpaRepository<PontuacaoColetiva, Long> {
     Optional<PontuacaoColetiva> findByTurmaId(Long turmaId);
 
-    /** Trava a linha para que dois lançamentos simultâneos não percam pontos. */
+    /** O bloqueio pessimista reserva o saldo existente para atualização até o fim da transação. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from PontuacaoColetiva p where p.turma.id = :turmaId")
     Optional<PontuacaoColetiva> bloquearPorTurma(@Param("turmaId") Long turmaId);

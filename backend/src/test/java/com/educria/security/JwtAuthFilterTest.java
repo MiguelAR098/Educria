@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+/** Testa o filtro em memória, com JWTs reais e a consulta de contas substituída por uma função. */
 class JwtAuthFilterTest {
 
     private static final String EMAIL = "aluno@example.test";
@@ -48,6 +49,7 @@ class JwtAuthFilterTest {
         ReflectionTestUtils.setField(tokens, "expirationMs", 60_000L);
     }
 
+    // Limpa a identidade da thread para que o próximo caso comece sem contexto autenticado.
     @AfterEach
     void limparContexto() {
         SecurityContextHolder.clearContext();
@@ -83,6 +85,7 @@ class JwtAuthFilterTest {
         assertRejeitado();
     }
 
+    /** O JUnit executa a mesma verificação para cada JWT fornecido pela fonte de argumentos. */
     @ParameterizedTest(name = "token rejeitado {index}")
     @MethodSource("tokensRejeitados")
     void rejeitaTokenInvalidoAntesDeConsultarConta(String token) throws Exception {

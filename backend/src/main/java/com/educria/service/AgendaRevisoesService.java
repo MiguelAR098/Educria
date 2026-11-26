@@ -15,13 +15,19 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.ArrayList;
 
+/** Mantém a agenda por questão e consulta revisões pendentes ou futuras no fuso do relógio de estudo. */
 @Service
 @RequiredArgsConstructor
 public class AgendaRevisoesService {
     private final RepeticaoEspacadaRepository repeticoes;
     private final Clock relogio;
 
-    // O chamador já bloqueou o aluno e validou a unicidade da resposta.
+    /**
+     * Um acerto inicia o agendamento em um dia ou avança no intervalo existente. Um erro retira a questão
+     * da agenda espaçada para que a sessão trate a reaprendizagem. O acerto que vier depois da remoção
+     * reinicia a agenda em um dia. {@code MANDATORY} exige a transação do chamador, que já bloqueou o
+     * aluno e validou a unicidade da tentativa.
+     */
     @Transactional(propagation = Propagation.MANDATORY)
     public void registrar(Aluno aluno, Questao questao, boolean correta, LocalDate dataResposta) {
         var existente = repeticoes.findByAlunoIdAndQuestaoId(aluno.getId(), questao.getId());
@@ -35,6 +41,7 @@ public class AgendaRevisoesService {
         repeticoes.save(agenda);
     }
 
+    /** Uma revisão que vence hoje já está pendente. A próxima virada informa ao cliente quando atualizar a lista. */
     @Transactional(readOnly = true)
     public AgendaRevisoes listar(Long alunoId) {
         var hoje = LocalDate.now(relogio);

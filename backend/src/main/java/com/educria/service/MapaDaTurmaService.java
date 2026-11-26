@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
 import java.util.List;
 
+/** Reúne os dados do mapa após validar o vínculo do professor com a turma solicitada. */
 @Service
 @RequiredArgsConstructor
 public class MapaDaTurmaService {

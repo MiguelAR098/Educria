@@ -22,6 +22,7 @@ public interface ProfessorRepository extends JpaRepository<Professor, Long> {
         long getTotalAlunos();
     }
 
+    /** Agrega uma linha por turma. O LEFT JOIN também representa professores ainda sem turma vinculada. */
     @Query("""
             select p.id as professorId, p.nome as professorNome, p.email as professorEmail, m.nome as materiaNome,
                    t.id as turmaId, t.nome as turmaNome, t.codigo as turmaCodigo, t.anoLetivo as turmaAnoLetivo,
@@ -33,6 +34,7 @@ public interface ProfessorRepository extends JpaRepository<Professor, Long> {
             """)
     List<LinhaDoPerfil> linhasDoPerfil(@Param("email") String email);
 
+    /** Carrega os vínculos de matéria e turmas usados para decidir o acesso a um recurso. */
     @Query("""
             select p from Professor p
             join fetch p.materia

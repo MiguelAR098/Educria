@@ -7,6 +7,10 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
+/**
+ * Registro de uma tentativa do aluno. Dentro de uma sessão, o passo identifica a tentativa mesmo quando
+ * a questão reaparece. Os registros legados podem vir sem sessão, passo, níveis ou pontuação.
+ */
 @Entity
 @Table(name = "respostas_aluno")
 @Getter
@@ -38,6 +42,7 @@ public class RespostaAluno {
     @Column(nullable = false)
     private boolean correta;
 
+    // O mapeamento exclui das atualizações os pontos concedidos e os níveis capturados no momento da resposta.
     @Column(name = "pontos_individuais", updatable = false)
     private Integer pontosIndividuais;
 

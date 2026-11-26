@@ -1,4 +1,5 @@
 -- O gatilho da V2 inicializa o desempenho por assunto ao cadastrar cada aluno.
+-- Esta etapa preenche os cenários apenas para novos cadastros, preservando o progresso anterior.
 DECLARE @desempenho TABLE (
     email nvarchar(100) NOT NULL,
     assunto nvarchar(100) NOT NULL,
@@ -37,5 +38,6 @@ JOIN dbo.assuntos a ON a.materia_id = m.id AND a.nome = v.assunto
 JOIN dbo.desempenho_por_assunto d ON d.aluno_id = aluno.id AND d.assunto_id = a.id
 WHERE aluno.novo = 1;
 
+-- Conferir o total evita concluir a carga se algum assunto ou registro de desempenho não existir.
 IF @@ROWCOUNT <> @esperados
     THROW 51130, N'O catálogo de Matemática ou o desempenho inicial por assunto está incompleto.', 1;

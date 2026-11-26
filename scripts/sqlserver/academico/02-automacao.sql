@@ -5,6 +5,8 @@ IF DB_NAME() NOT LIKE N'educria[_]sqlserver[_]teste[_]%'
     THROW 51030, N'As rotinas acadêmicas exigem banco descartável identificado.', 1;
 
 -- Cada definição precisa iniciar o próprio lote de compilação no SQL Server.
+-- EXEC envia a definição em um lote separado. A função escalar retorna um
+-- número por aluno e dia. DISTINCT mantém cada questão errada uma única vez.
 EXEC(N'
 CREATE OR ALTER FUNCTION dbo.educria_fn_erros_diarios(@aluno bigint, @dia date)
 RETURNS int
@@ -18,6 +20,9 @@ BEGIN
     );
 END;
 ');
+-- A procedure retorna uma linha de resumo para a turma informada. LEFT JOIN
+-- mantém turmas sem atividades. COUNT sobre a PK ignora a linha sem atividade
+-- e COALESCE fornece zero quando o saldo ou a soma são nulos.
 EXEC(N'
 CREATE OR ALTER PROCEDURE dbo.educria_sp_resumo_turma @turma bigint
 AS

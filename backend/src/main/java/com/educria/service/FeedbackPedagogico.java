@@ -8,6 +8,7 @@ import com.educria.dto.FeedbackResposta.TipoOrientacao;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+/** Monta o retorno pedagógico de uma tentativa já registrada. */
 final class FeedbackPedagogico {
     private static final Pattern PERCENTUAL_DE_UM_TOTAL =
             Pattern.compile("Quanto é [0-9]+(?:[,.][0-9]+)?% de [0-9]+(?:[,.][0-9]+)?\\?",
@@ -15,6 +16,14 @@ final class FeedbackPedagogico {
 
     private FeedbackPedagogico() {}
 
+    /**
+     * Um acerto devolve a explicação disponível. O primeiro erro recebe uma dica inicial, o segundo recebe
+     * uma orientação mais concreta e, a partir do terceiro, o retorno pode revelar a solução cadastrada.
+     *
+     * @param resposta tentativa já registrada, com o nível e os pontos daquele passo
+     * @param erros total de erros do aluno para a questão na sessão até o passo informado
+     * @return orientação compatível com o resultado e com os dados disponíveis na questão
+     */
     static FeedbackResposta montar(RespostaAluno resposta, long erros) {
         Questao questao = resposta.getQuestao();
         if (resposta.isCorreta()) {

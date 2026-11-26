@@ -7,6 +7,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
+/**
+ * Contrato entregue no cadastro e no login. Contém os dados da própria conta necessários à interface.
+ * {@code @ToString.Exclude} mantém o JWT fora da representação textual gerada pelo Lombok.
+ */
 @Data
 @Builder
 @NoArgsConstructor

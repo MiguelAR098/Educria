@@ -8,7 +8,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
+/** Registra tentativas e consulta respostas, pendências e totais de pontuação individual. */
 public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Long> {
+    // O Spring Data deriva as consultas pelos nomes dos métodos. A sessão e o passo identificam a tentativa.
     Optional<RespostaAluno> findBySessaoIdAndPasso(Long sessao, int passo);
     Optional<RespostaAluno> findFirstBySessaoIdAndQuestaoIdAndAlunoIdOrderByPasso(Long sessao, Long questao, Long aluno);
     Optional<RespostaAluno> findBySessaoIdAndPassoAndAlunoId(Long sessao, int passo, Long aluno);
@@ -18,6 +20,7 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
         boolean getCorreta();
     }
 
+    /** Consulta somente o resultado que define a faixa de pontuação do próximo acerto para essa questão. */
     Optional<UltimaTentativa> findFirstByAlunoIdAndQuestaoIdOrderByRespondidoEmDescIdDesc(Long aluno, Long questao);
 
     @Query("""
@@ -39,6 +42,7 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
         int getUltimoPasso();
     }
 
+    /** Agrupa os erros marcados para reaprender por questão, retira as que já tiveram acerto na sessão e ordena pelo último passo. */
     @Query("""
             select r.questao.id as questao, max(r.passo) as ultimoPasso
             from RespostaAluno r where r.sessao.id = :sessao and r.aluno.id = :aluno
@@ -51,6 +55,7 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
 
     List<RespostaAluno> findByAlunoId(Long alunoId);
 
+    /** Soma os pontos persistidos do titular. Valores ausentes em tentativas legadas ficam fora da soma. */
     @Query("""
             select coalesce(sum(cast(r.pontosIndividuais as Long)), 0L) from RespostaAluno r
             where r.aluno.id = :aluno and r.pontosIndividuais is not null

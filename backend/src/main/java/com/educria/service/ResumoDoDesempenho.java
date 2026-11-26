@@ -6,6 +6,10 @@ import com.educria.domain.enums.SituacaoAluno;
 
 import java.util.Collection;
 
+/**
+ * Combina os diagnósticos já praticados. Cada assunto tem o mesmo peso na média de nível,
+ * e as contagens somam as respostas que participaram da progressão.
+ */
 record ResumoDoDesempenho(Double nivelMedio, int acertos, int erros, int errosConsecutivos) {
     static ResumoDoDesempenho dosAssuntos(Collection<DesempenhoPorAssunto> assuntos) {
         var medidas = new CalculoDaTurma.MedidasDeAprendizagem();

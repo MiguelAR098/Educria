@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 
+/** Operações administrativas de turma. A cadeia de segurança exige o perfil ADMIN para o prefixo da rota. */
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor

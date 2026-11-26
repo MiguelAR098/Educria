@@ -10,6 +10,7 @@ import java.util.List;
 
 public interface AtividadeColetivaRepository extends JpaRepository<AtividadeColetiva, Long> {
 
+    /** Busca atividades recentes pela turma e carrega o autor quando ele ainda está vinculado. */
     @Query("""
             select a from AtividadeColetiva a
             left join fetch a.professor

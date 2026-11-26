@@ -13,12 +13,14 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.security.Principal;
 import java.util.Map;
 
+/** Recebe a alternativa marcada no passo da sessão. O serviço valida o estado e corrige a questão. */
 @RestController
 @RequestMapping("/api/aluno/sessoes")
 @RequiredArgsConstructor
 public class RespostaSessaoController {
     private final SessaoEstudoService service;
 
+    /** Usa sessão, questão e passo para identificar a tentativa, inclusive quando o cliente precisa reenviá-la. */
     @PutMapping("/{id}/questoes/{questaoId}/resposta")
     public FeedbackResposta responder(Principal titular, @PathVariable Long id, @PathVariable Long questaoId,
                                       @Valid @RequestBody EnviarResposta pedido) {

@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/** Fornece o catálogo, o desempenho privado do aluno e a pontuação coletiva da turma à área do estudante. */
 @Service
 @RequiredArgsConstructor
 public class AlunoService {
@@ -49,6 +50,7 @@ public class AlunoService {
         return materiaRepository.listarAssuntos(materiaId, alunoId);
     }
 
+    /** Combina o diagnóstico de assuntos praticados e a soma dos pontos já gravados nas tentativas do titular. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public DesempenhoResponse getMeuDesempenho(Long alunoId) {
         var resumo = ResumoDoDesempenho.dosAssuntos(desempenhoPorAssunto.doAluno(alunoId));
@@ -78,6 +80,7 @@ public class AlunoService {
                 .build();
     }
 
+    /** Consulta a pontuação oficial da turma atual do aluno, preservando o resumo padrão quando não há vínculo. */
     @Transactional(readOnly = true)
     public PontuacaoColetivaResponse getPontuacaoDaMinhaTurma(Long alunoId) {
         Aluno aluno = alunoRepository.findByIdWithTurma(alunoId)

@@ -8,11 +8,17 @@ import java.util.Objects;
 
 import com.educria.service.CalculoDaTurma.AlunoNaTurma;
 
+/** Reutiliza a ordenação dos rankings privados para métricas comparáveis, como pontos e evolução. */
 final class ClassificacaoDaTurma {
     private ClassificacaoDaTurma() {}
 
     record Classificado<T>(Integer posicao, AlunoNaTurma aluno, T valor) {}
 
+    /**
+     * Ordena por valor decrescente. Empates recebem a mesma posição e a posição seguinte considera
+     * todos os alunos anteriores. Nome e identificador estabilizam a ordem entre iguais.
+     * Alunos sem dados aparecem ao final e ficam sem posição.
+     */
     static <T extends Comparable<? super T>> List<Classificado<T>> ordenar(List<AlunoNaTurma> alunos,
                                                                           Map<Long, T> valores) {
         var ordenados = alunos.stream()

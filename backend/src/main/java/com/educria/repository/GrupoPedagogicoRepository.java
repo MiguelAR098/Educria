@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
+/** Recupera grupos do autor e os contextos de turma usados nas verificações do serviço. */
 public interface GrupoPedagogicoRepository extends JpaRepository<GrupoPedagogico, Long> {
     @Query("""
             select g from GrupoPedagogico g join fetch g.turmas
@@ -24,6 +25,7 @@ public interface GrupoPedagogicoRepository extends JpaRepository<GrupoPedagogico
 
     Optional<GrupoPedagogico> findByIdAndProfessorId(Long id, Long professorId);
 
+    /** Usa bloqueio de atualização na linha do grupo, até o fim da transação que altera o contexto ou seus vínculos. */
     @Query(value = """
             select g.* from dbo.grupos_pedagogicos g with (UPDLOCK, ROWLOCK)
             where g.id = :id and g.professor_id = :professorId

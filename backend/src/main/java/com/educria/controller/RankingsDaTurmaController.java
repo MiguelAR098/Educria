@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Entrega classificações privadas da turma ao professor e marca o retorno com {@code no-store}. */
 @RestController
 @RequestMapping("/api/professor/turmas/{turmaId}/rankings")
 @RequiredArgsConstructor

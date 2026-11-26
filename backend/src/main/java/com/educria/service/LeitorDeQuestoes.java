@@ -19,6 +19,14 @@ final class LeitorDeQuestoes {
 
     private LeitorDeQuestoes() {}
 
+    /**
+     * Converte um item em uma entrada de cadastro e verifica campos que, na importação,
+     * chegam como JSON livre. O mapa contém exclusivamente assuntos da matéria autorizada.
+     *
+     * @param item objeto de questão recebido no lote
+     * @param assuntoPorNome identificadores dos assuntos, indexados pelo nome normalizado
+     * @return entrada correspondente para validação e persistência pelo serviço
+     */
     static QuestaoRequest ler(JsonNode item, Map<String, Long> assuntoPorNome) {
         if (item == null || !item.isObject()) {
             throw new IllegalArgumentException("o item precisa ser um objeto entre chaves");

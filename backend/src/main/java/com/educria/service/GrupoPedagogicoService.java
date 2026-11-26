@@ -34,6 +34,10 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Administra grupos e projetos de um professor ativo dentro de suas turmas.
+ * Escritas carregam o grupo com bloqueio e mantêm a autorização e a alteração na mesma transação.
+ */
 @Service
 @RequiredArgsConstructor
 @Transactional(isolation = Isolation.REPEATABLE_READ)
@@ -47,6 +51,7 @@ public class GrupoPedagogicoService {
     public record Contexto(Long id, String nome, TipoGrupoPedagogico tipo, Long professorId,
                            Long materiaId, String materiaNome, List<Long> turmasIds) {}
 
+    /** Cria um grupo nas turmas solicitadas depois de conferir cada vínculo com o professor autenticado. */
     public Resumo criar(String email, Criacao pedido) {
         Professor professor = professorAtivo(email);
         var ids = new HashSet<>(pedido.turmasIds());
@@ -80,6 +85,10 @@ public class GrupoPedagogicoService {
         return resumo(grupo);
     }
 
+    /**
+     * Confere se todos os alunos solicitados estão ativos nas turmas do grupo antes de gravar o lote.
+     * Participações vigentes são reaproveitadas. Novos vínculos registram a turma de origem.
+     */
     public Detalhe incluir(String email, Long id, Inclusao pedido) {
         GrupoPedagogico grupo = grupoAutorizado(professorAtivo(email), id, true);
         exigirAtivo(grupo);
@@ -100,6 +109,7 @@ public class GrupoPedagogicoService {
         return detalhe(grupo);
     }
 
+    /** Registra a saída de uma participação vigente, preservando o período em que o aluno integrou o grupo. */
     public void remover(String email, Long id, Long alunoId) {
         GrupoPedagogico grupo = grupoAutorizado(professorAtivo(email), id, true);
         exigirAtivo(grupo);
@@ -110,12 +120,14 @@ public class GrupoPedagogicoService {
                 .ifPresent(participacao -> participacao.sair(agora()));
     }
 
+    /** Arquiva sem apagar o grupo nem seu histórico. Uma nova solicitação preserva a data já registrada. */
     public Resumo arquivar(String email, Long id) {
         GrupoPedagogico grupo = grupoAutorizado(professorAtivo(email), id, true);
         grupo.arquivar(agora());
         return resumo(grupo);
     }
 
+    /** Entrega ao serviço de indicadores apenas o contexto do grupo validado para o professor autenticado. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Contexto contextoAutorizado(String email, Long id) {
         Professor professor = professorAtivo(email);
@@ -129,6 +141,7 @@ public class GrupoPedagogicoService {
                 .orElseThrow(() -> new ApiException("Professor não encontrado", HttpStatus.NOT_FOUND));
     }
 
+    // Exige autoria e vínculo atual com todas as turmas. Ausência e falta de acesso recebem a mesma resposta.
     private GrupoPedagogico grupoAutorizado(Professor professor, Long id, boolean bloquear) {
         var encontrado = bloquear ? grupos.bloquearDoProfessor(id, professor.getId())
                 : grupos.findByIdAndProfessorId(id, professor.getId());

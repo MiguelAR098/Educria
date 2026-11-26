@@ -40,6 +40,7 @@ final class CalculoDaTurma {
 
     record AlunoNaTurma(Long id, String nome) {}
 
+    /** Intervalo usado no panorama e nos grupos, do início de hoje menos 30 dias até o início de amanhã. */
     record Janela(LocalDateTime inicio, LocalDateTime fimExclusivo) {
         static Janela ate(LocalDate hoje) {
             return new Janela(hoje.minusDays(JANELA_DIAS).atStartOfDay(), hoje.plusDays(1).atStartOfDay());
@@ -50,6 +51,7 @@ final class CalculoDaTurma {
         }
     }
 
+    /** Reúne os níveis praticados e suas variações para calcular as médias de um aluno na matéria. */
     static final class MedidasDeAprendizagem {
         private final IntSummaryStatistics niveisPraticados = new IntSummaryStatistics();
         private final IntSummaryStatistics variacoes = new IntSummaryStatistics();
@@ -64,6 +66,10 @@ final class CalculoDaTurma {
             return niveisPraticados.getCount() == 0 ? null : niveisPraticados.getAverage();
         }
 
+        /**
+         * Divide a soma das diferenças entre nível final e inicial pelo número de assuntos da matéria.
+         * Sem resposta no intervalo ou sem nível inicial comparável, a evolução fica sem valor.
+         */
         Double evolucao30d(int totalAssuntos, boolean respondeuNaJanela) {
             return !respondeuNaJanela || variacoes.getCount() == 0 ? null
                     : Math.round((double) variacoes.getSum() / totalAssuntos * 100.0) / 100.0;
@@ -117,6 +123,7 @@ final class CalculoDaTurma {
                 List<RespostaNivel> daJanela = cel.stream()
                         .filter(r -> janela.contem(r.respondidoEm()))
                         .toList();
+                // O alerta considera todas as tentativas incorretas, inclusive as de reaprendizagem.
                 naJanela += daJanela.size();
                 daJanela.stream().filter(r -> !r.correta()).forEach(r -> erros.merge(assunto.nome(), 1, Integer::sum));
 
@@ -134,6 +141,7 @@ final class CalculoDaTurma {
             if (vencidas >= REVISOES_ACUMULADAS) {
                 acumulando.add(nome);
             }
+            // Sugere ampliar o desafio apenas quando o nível é alto, há prática recente e a variação é pequena.
             if (evolucao != null && Math.abs(evolucao) < LIMITE_VARIACAO && naJanela >= MINIMO_RESPOSTAS_ATIVO
                     && nivelMedio != null && nivelMedio >= NIVEL_ALTO) {
                 semDesafio.add(nome);
@@ -216,7 +224,7 @@ final class CalculoDaTurma {
         return pontos;
     }
 
-    /** Nível do assunto ao fim do período (exclusivo); nulo se o aluno ainda não tinha respondido até então. */
+    /** Último nível histórico antes do limite. Respostas legadas sem nível ficam fora da referência. */
     private static Integer nivelAte(List<RespostaNivel> cel, LocalDateTime limiteExclusivo) {
         Integer nivel = null;
         for (RespostaNivel r : cel) {
@@ -231,8 +239,8 @@ final class CalculoDaTurma {
     }
 
     /**
-     * Nível no começo da janela: o nível depois da última resposta anterior a ela ou, se o aluno só começou
-     * dentro da janela, o nível em que estava antes da primeira resposta.
+     * Usa o último nível histórico anterior ao início da janela. Na ausência dele, usa o nível
+     * com que o aluno chegou à primeira resposta com nível inicial registrado no histórico.
      */
     private static Integer nivelInicial(List<RespostaNivel> cel, LocalDateTime inicioDaJanela) {
         Integer antes = nivelAte(cel, inicioDaJanela);

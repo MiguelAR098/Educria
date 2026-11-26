@@ -9,6 +9,10 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
+/**
+ * Agrega eventos de estudo no SQL Server com {@code JdbcClient}, retornando linhas de relatório.
+ * {@code GROUPING SETS} obtém totais gerais, por assunto e por dia a partir do mesmo conjunto de eventos.
+ */
 @Repository
 @RequiredArgsConstructor
 public class EvolucaoAprendizagemRepository {
@@ -16,6 +20,7 @@ public class EvolucaoAprendizagemRepository {
 
     // Primeira tentativa é avaliada pelo passo na sessão, inclusive antes do período.
     // Respostas legadas sem sessão entram nas contagens, mas ficam sem classificação de tentativa.
+    // A sessão define o assunto histórico. Apenas a resposta sem sessão usa a classificação atual da questão.
     private static final String AGREGAR = """
             with respostas_periodo as (
                 select coalesce(s.assunto_id, q.assunto_id) as assunto_id, cast(r.respondido_em as date) as dia,
@@ -78,6 +83,10 @@ public class EvolucaoAprendizagemRepository {
             order by a.id, e.dia
             """;
 
+    /**
+     * Agrega a janela para um aluno. Os filtros opcionais limitam os eventos ao assunto ou à matéria.
+     * A zona converte o início e o fim do período para instantes nas colunas de sessão.
+     */
     public List<Linha> agregar(long alunoId, Long assuntoId, Long materiaId, LocalDate inicio, LocalDate fimExclusivo, ZoneId zona) {
         return jdbc.sql(AGREGAR)
                 .param("alunoId", alunoId)

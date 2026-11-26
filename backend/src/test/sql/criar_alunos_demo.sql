@@ -1,4 +1,4 @@
--- Cria as quatro contas sintéticas na turma DEMO-8A. Login: e-mail / aluno123.
+-- Cria as quatro contas sintéticas nos papéis pedagógicos da turma de demonstração.
 -- Executado por scripts/sqlserver/carregar-demo.sh, na mesma transação do restante da carga.
 DECLARE @turma_id bigint = (SELECT id FROM #demo_turma);
 IF @turma_id IS NULL
@@ -73,6 +73,8 @@ BEGIN
     THROW 51032, @mensagem, 1;
 END;
 
+-- As contas existentes são registradas com novo = 0. OUTPUT guarda os IDs
+-- dos cadastros recém-criados para inserir os subtipos e o desempenho apenas uma vez.
 INSERT INTO #demo_alunos (email, id, novo)
 SELECT email, usuario_existente, 0
 FROM @alunos

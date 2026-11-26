@@ -3,6 +3,7 @@ package com.educria.domain.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 
+/** Item do catálogo que agrupa assuntos e define a área de atuação do professor. */
 @Entity
 @Table(name = "materias")
 @Getter

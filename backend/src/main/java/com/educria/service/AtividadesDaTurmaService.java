@@ -27,6 +27,7 @@ public class AtividadesDaTurmaService {
     private final PontuacaoColetivaRepository pontuacaoRepository;
     private final AtividadeColetivaRepository atividadeRepository;
 
+    /** O cadastro do aluno autenticado define a turma da consulta. Sem turma, retorna saldo zero e lista vazia. */
     @Transactional(readOnly = true)
     public HistoricoDeAtividades daMinhaTurma(String emailAluno) {
         Aluno aluno = alunoRepository.findByEmail(emailAluno)

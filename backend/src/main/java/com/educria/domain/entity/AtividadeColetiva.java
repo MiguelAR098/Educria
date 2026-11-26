@@ -37,6 +37,7 @@ public class AtividadeColetiva {
     @JoinColumn(name = "professor_id")
     private Professor professor;
 
+    /** Guarda o nome da opção do enum para preservar o significado se a ordem das opções mudar. */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TipoAtividadeColetiva tipo;

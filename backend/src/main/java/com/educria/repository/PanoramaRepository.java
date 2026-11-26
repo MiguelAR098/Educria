@@ -27,6 +27,7 @@ public interface PanoramaRepository extends JpaRepository<RespostaAluno, Long> {
         }
     }
 
+    /** Soma pontos individuais já registrados nas respostas de sessão, agrupados por aluno da turma. */
     @Query("""
             select r.aluno.id as alunoId, sum(cast(r.pontosIndividuais as Long)) as pontos
             from RespostaAluno r join r.sessao s
@@ -36,6 +37,7 @@ public interface PanoramaRepository extends JpaRepository<RespostaAluno, Long> {
             """)
     List<PontosDoAluno> pontosDaTurma(@Param("turmaId") Long turmaId, @Param("materiaId") Long materiaId);
 
+    /** A sessão preserva o assunto estudado. Para respostas legadas sem sessão, usa-se o assunto atual da questão. */
     @Query("""
             select new com.educria.dto.RespostaNivel(r.aluno.id, a.id, a.nome, r.nivelAnterior, r.nivelAtual,
                                                      r.correta, r.respondidoEm)

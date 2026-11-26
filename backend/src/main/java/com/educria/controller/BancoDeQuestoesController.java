@@ -27,6 +27,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * Interface HTTP do banco da matéria do professor. PUT recebe os campos editáveis da questão,
+ * enquanto PATCH altera somente a disponibilidade. A cobertura tem uma consulta agregada própria.
+ */
 @RestController
 @RequestMapping("/api/professor/questoes")
 @RequiredArgsConstructor

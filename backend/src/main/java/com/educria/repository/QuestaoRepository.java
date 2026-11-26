@@ -8,8 +8,13 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
+/** Consulta questões de estudo com projeções que omitem gabarito e explicação. */
 public interface QuestaoRepository extends Repository<Questao, Long> {
 
+    /**
+     * Predicado reutilizado pela seleção, pela recomendação de assunto e pela cobertura do banco.
+     * A função registrada no Hibernate mede texto útil na alternativa correta, descartando opções vazias.
+     */
     String QUESTAO_ELEGIVEL = """
             q.atividade.ativa = true and q.ativa = true and q.dificuldade is not null
             and function('educria_tamanho_texto', case upper(q.respostaCorreta)

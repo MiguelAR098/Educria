@@ -1,4 +1,4 @@
--- Etapa 1 de scripts/sqlserver/carregar-demo.sh. Login: professor@educria.com / professor123
+-- Primeira etapa da carga local. Prepara a turma e o vínculo do professor de Matemática.
 IF XACT_STATE() <> 1 OR OBJECT_ID(N'tempdb..#demo_turma', N'U') IS NULL
     THROW 51010, N'Execute a carga pelo script scripts/sqlserver/carregar-demo.sh.', 1;
 
@@ -14,6 +14,8 @@ SELECT @materia_id = id FROM dbo.materias WITH (HOLDLOCK) WHERE nome = N'Matemá
 IF @materia_id IS NULL
     THROW 51011, N'A matéria Matemática não está disponível no catálogo.', 1;
 
+-- As consultas mantêm os bloqueios até o fim da transação. Isso protege as
+-- chaves consultadas durante a checagem antes de decidir se deve criar a turma e a conta.
 SELECT @professor_id = id FROM dbo.usuarios WITH (UPDLOCK, HOLDLOCK) WHERE email = @email;
 SELECT @turma_id = MIN(id), @total_turmas = COUNT_BIG(*)
 FROM dbo.turmas WITH (UPDLOCK, HOLDLOCK)
@@ -24,6 +26,7 @@ IF @total_turmas > 1 OR (@turma_id IS NOT NULL AND @professor_id IS NULL)
 
 IF @professor_id IS NULL
 BEGIN
+    -- SCOPE_IDENTITY retorna o ID gerado neste escopo e serve de FK nas próximas inserções.
     INSERT INTO dbo.turmas (nome, codigo, ano_letivo) VALUES (@nome_turma, @codigo, @ano_letivo);
     SET @turma_id = CONVERT(bigint, SCOPE_IDENTITY());
 

@@ -17,11 +17,11 @@ public enum SituacaoAluno {
     public static final double LIMITE_ATENCAO = 60.0;
 
     /**
-     * - sem respostas ............................ SEM_DADOS
-     * - 5+ respostas e taxa abaixo de 40% ........ EM_RISCO
-     * - 1+ erro seguido (o próximo erro rebaixa)
-     *   ou 5+ respostas e taxa abaixo de 60% ..... ATENCAO
-     * - demais casos ............................. NO_CAMINHO
+     * Classifica o acompanhamento pedagógico usando respostas, taxa de acerto e erros consecutivos.
+     * Sem respostas ou taxa calculável, a situação é {@link #SEM_DADOS}.
+     * Com pelo menos cinco respostas, taxa abaixo de 40% indica {@link #EM_RISCO}.
+     * Se a condição de risco não se aplica, um erro consecutivo ou taxa abaixo de 60% com amostra
+     * suficiente indica {@link #ATENCAO}. Os demais casos são {@link #NO_CAMINHO}.
      */
     public static SituacaoAluno calcular(int respostas, Double taxaAcerto, int errosConsecutivos) {
         if (respostas == 0 || taxaAcerto == null) {

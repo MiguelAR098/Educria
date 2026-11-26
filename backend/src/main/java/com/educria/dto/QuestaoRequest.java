@@ -6,7 +6,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-/** Dificuldade de 1 (mais fácil) a 10 (mais difícil); resposta correta é a letra A, B, C ou D. */
+/**
+ * Entrada do banco de questões. As anotações conferem presença, tamanho e dificuldade de 1 a 10.
+ * O serviço verifica a letra do gabarito, a distinção entre as alternativas e o acesso ao assunto.
+ */
 public record QuestaoRequest(
         @NotNull(message = "Escolha o assunto")
         Long assuntoId,

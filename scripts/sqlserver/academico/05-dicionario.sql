@@ -9,6 +9,8 @@ FROM sys.tables t JOIN sys.columns c ON c.object_id=t.object_id
 WHERE SCHEMA_NAME(t.schema_id)=N'dbo' AND t.name<>N'flyway_schema_history';
 
 -- Cada regra composta é identificada pelo nome do objeto.
+-- O catálogo armazena max_length em bytes. Para nvarchar, o divisor dois
+-- reconstrói o tamanho declarado. max_length igual a -1 representa MAX.
 SELECT t.name AS tabela, c.name AS coluna,
        CONCAT(ty.name, CASE WHEN ty.name IN (N'nvarchar',N'varchar') THEN
            CONCAT(N'(', CASE WHEN c.max_length=-1 THEN N'max'
@@ -26,6 +28,8 @@ JOIN sys.columns c ON c.object_id=t.object_id
 JOIN sys.types ty ON ty.user_type_id=c.user_type_id
 LEFT JOIN sys.identity_columns ic ON ic.object_id=t.object_id AND ic.column_id=c.column_id
 LEFT JOIN sys.default_constraints dc ON dc.object_id=c.default_object_id
+-- APPLY consulta os metadados relacionados à coluna atual. A variante OUTER
+-- conserva a coluna mesmo quando não há chave ou regra correspondente.
 OUTER APPLY (
     SELECT STRING_AGG(CONVERT(nvarchar(max),CONCAT(CASE WHEN i.is_primary_key=1 THEN N'PK ' ELSE N'UNIQUE ' END,
            CASE WHEN i.is_primary_key=0 AND i.is_unique_constraint=0 THEN i.name ELSE N'(' + chaves.colunas + N')' END,
@@ -33,6 +37,7 @@ OUTER APPLY (
     FROM sys.indexes i
     JOIN sys.index_columns k ON k.object_id=i.object_id AND k.index_id=i.index_id
     CROSS APPLY (
+        -- Colunas INCLUDE não fazem parte da chave. key_ordinal ordena a chave composta.
         SELECT STRING_AGG(CONVERT(nvarchar(max),cc.name) COLLATE DATABASE_DEFAULT,N', ')
                WITHIN GROUP (ORDER BY kc.key_ordinal) AS colunas
         FROM sys.index_columns kc JOIN sys.columns cc ON cc.object_id=kc.object_id AND cc.column_id=kc.column_id

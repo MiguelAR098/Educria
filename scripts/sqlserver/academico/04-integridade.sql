@@ -4,6 +4,8 @@ IF DB_NAME() NOT LIKE N'educria[_]sqlserver[_]teste[_]%'
     THROW 51020, N'A prova exige banco descartável identificado.', 1;
 
 -- A transação contém somente registros de prova; os dados da demonstração ficam intactos.
+-- XACT_ABORT OFF permite capturar as violações esperadas e prosseguir na
+-- mesma transação. ROLLBACK desfaz os registros, mas não recupera valores de IDENTITY.
 SET XACT_ABORT OFF;
 BEGIN TRANSACTION;
 BEGIN TRY
@@ -19,6 +21,8 @@ BEGIN TRY
     DECLARE @sessao bigint = (SELECT MIN(id) FROM dbo.sessoes_estudo WHERE aluno_id=@aluno);
     DECLARE @questao bigint = (SELECT questao_id FROM dbo.sessao_questoes WHERE sessao_id=@sessao AND indice=0);
     DECLARE @assunto bigint = (SELECT assunto_id FROM dbo.sessoes_estudo WHERE id=@sessao);
+    -- Se a operação inválida for aceita, o THROW da prova marca a falha.
+    -- O erro 547 é a rejeição esperada para estes casos de FK ou CHECK.
     BEGIN TRY
         INSERT dbo.respostas_aluno(aluno_id,questao_id,sessao_id,passo,resposta_dada,correta)
         VALUES (@outro,@questao,@sessao,3,N'A',1);
@@ -38,6 +42,8 @@ BEGIN TRY
 
     INSERT dbo.sessoes_estudo(aluno_id,assunto_id,situacao,iniciada_em,atualizada_em)
     VALUES (@aluno,@assunto,N'ATIVA',SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET());
+    -- ATIVA e INTERROMPIDA estão no filtro do índice único. Os erros 2601 e
+    -- 2627 identificam a tentativa rejeitada por duplicidade.
     BEGIN TRY
         INSERT dbo.sessoes_estudo(aluno_id,assunto_id,situacao,iniciada_em,atualizada_em)
         VALUES (@aluno,@assunto,N'INTERROMPIDA',SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET());
@@ -55,6 +61,8 @@ BEGIN TRY
     INSERT dbo.sessoes_estudo(aluno_id,assunto_id,situacao,iniciada_em,atualizada_em)
     VALUES (@alunoProva,@assunto,N'ATIVA',SYSDATETIMEOFFSET(),SYSDATETIMEOFFSET());
     DECLARE @sessaoProva bigint = SCOPE_IDENTITY();
+    -- A FK de retomada é validada no UPDATE. Inserir a apresentação antes
+    -- permite gravar a referência, como mostra a segunda tentativa abaixo.
     BEGIN TRY
         UPDATE dbo.sessoes_estudo SET questao_retomada_id=@questao WHERE id=@sessaoProva;
         THROW 51025, N'A FK imediata deveria rejeitar a retomada antes da apresentação.', 1;
@@ -108,6 +116,8 @@ BEGIN TRY
         IF ERROR_NUMBER() <> 547 THROW;
     END CATCH;
 
+    -- A exclusão do aluno dispara as cascatas das relações dependentes. Por
+    -- exemplo, as questões apresentadas saem pela relação com a sessão.
     DELETE FROM dbo.alunos WHERE usuario_id=@alunoProva;
     IF EXISTS (SELECT 1 FROM dbo.sessoes_estudo WHERE aluno_id=@alunoProva)
        OR EXISTS (SELECT 1 FROM dbo.sessao_questoes WHERE sessao_id=@sessaoProva)

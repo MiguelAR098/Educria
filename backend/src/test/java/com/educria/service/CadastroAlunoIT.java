@@ -74,6 +74,7 @@ class CadastroAlunoIT extends IntegracaoSqlServer {
                 .andExpect(jsonPath("$.token").isNotEmpty());
     }
 
+    /** Confirma por HTTP e SQL que dois cadastros com o mesmo e-mail resultam em uma conta e um conflito. */
     @Test
     void cadastrosSimultaneosDoMesmoEmailCriamUmaContaEDevolvemConflito() throws Exception {
         var pedido = cadastro();

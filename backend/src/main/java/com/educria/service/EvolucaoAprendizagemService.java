@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/** Monta o relatório de 30 dias com contagens diárias, indicadores do período e níveis observados por assunto. */
 @Service
 @RequiredArgsConstructor
 public class EvolucaoAprendizagemService {
@@ -32,6 +33,7 @@ public class EvolucaoAprendizagemService {
     private final EvolucaoAprendizagemRepository evolucao;
     private final Clock relogio;
 
+    /** Consulta a evolução do titular identificado pelo e-mail autenticado, com filtro opcional por assunto. */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RelatorioEvolucao obter(String email, Long assuntoId) {
         var aluno = alunos.findByEmail(email)
@@ -50,6 +52,7 @@ public class EvolucaoAprendizagemService {
             throw new ApiException("Assunto não encontrado", HttpStatus.NOT_FOUND);
         }
 
+        // O intervalo inclui hoje e os 29 dias anteriores. O começo de amanhã serve de limite exclusivo.
         var hoje = LocalDate.now(relogio);
         var inicio = hoje.minusDays(DIAS - 1);
         var fimExclusivo = hoje.plusDays(1);
@@ -61,6 +64,7 @@ public class EvolucaoAprendizagemService {
 
         var porDia = linhas.stream().filter(linha -> linha.dia() != null)
                 .collect(Collectors.toMap(Linha::dia, Function.identity()));
+        // Completa os dias sem eventos com contagens zeradas. Os níveis observados continuam opcionais.
         var dias = inicio.datesUntil(fimExclusivo).map(data -> {
             var dia = porDia.get(data);
             return dia == null ? new Dia(data, 0, 0, 0, 0)

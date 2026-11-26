@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** Aplica as permissões de turma e autoria dos recados e prepara respostas com os campos usados no painel. */
 @Service
 @RequiredArgsConstructor
 public class RecadoService {
@@ -64,6 +65,7 @@ public class RecadoService {
                 listar(aluno.getId()));
     }
 
+    /** Marca todos os recados não lidos do aluno autenticado, inclusive os que estão fora da página exibida. */
     @Transactional
     public void marcarComoLidos(String emailAluno) {
         Aluno aluno = buscarAluno(emailAluno);

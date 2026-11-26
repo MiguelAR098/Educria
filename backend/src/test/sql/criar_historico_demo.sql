@@ -1,4 +1,5 @@
 -- Em uma base nova, o callback Flyway do perfil dev fornece as questões de Matemática.
+-- As datas de resposta usam a hora local de São Paulo. Os históricos são criados apenas para contas novas.
 DECLARE @agora datetime2(6) = CONVERT(datetime2(6), SYSDATETIMEOFFSET() AT TIME ZONE 'E. South America Standard Time');
 DECLARE @matematica bigint = (SELECT id FROM dbo.materias WHERE nome = N'Matemática');
 DECLARE @carla bigint = (SELECT id FROM #demo_alunos WHERE email = N'carla.demo@educria.com' AND novo = 1);
@@ -28,6 +29,8 @@ BEGIN
     FROM dbo.questoes q
     JOIN dbo.atividades atividade ON atividade.id = q.atividade_id
     JOIN dbo.assuntos a ON a.id = q.assunto_id
+    -- CROSS APPLY escolhe a primeira alternativa incorreta preenchida de cada questão.
+    -- As questões que não oferecem uma alternativa assim ficam fora do histórico sintético.
     CROSS APPLY (
         SELECT TOP (1) alternativa.letra
         FROM (VALUES (N'A', q.alternativa_a), (N'B', q.alternativa_b),

@@ -52,6 +52,10 @@ public class BancoDeQuestoesService {
     private final BancoDeQuestoesRepository bancoRepository;
     private final AtividadeRepository atividadeRepository;
 
+    /**
+     * Retorna questões ativas e desativadas da matéria, com estatísticas agregadas de uso.
+     * Quando informado, o assunto precisa pertencer à matéria do professor autenticado.
+     */
     @Transactional(readOnly = true)
     public BancoDeQuestoes listar(String email, Long assuntoId) {
         Professor professor = buscarProfessor(email);
@@ -73,6 +77,7 @@ public class BancoDeQuestoesService {
                 questoes.stream().map(q -> paraResposta(q, uso.get(q.getId()))).toList());
     }
 
+    /** Monta uma linha por assunto e uma célula por dificuldade usando contagens feitas pelo banco. */
     @Transactional(readOnly = true)
     public CoberturaDoBanco cobertura(String email) {
         Long materiaId = buscarProfessor(email).getMateria().getId();
@@ -85,6 +90,7 @@ public class BancoDeQuestoesService {
             contagens[contagem.getDificuldade() - NivelAdaptativo.MINIMO] = contagem.getTotal();
         }
 
+        // O catálogo também inclui assuntos ausentes da consulta agregada, com todas as células em zero.
         long[] semQuestoes = new long[QUANTIDADE_DIFICULDADES];
         List<CoberturaDoBanco.Assunto> cobertura = assuntos.stream().map(assunto -> {
             long[] contagens = contagensPorAssunto.getOrDefault(assunto.getId(), semQuestoes);
@@ -113,6 +119,7 @@ public class BancoDeQuestoesService {
         return paraResposta(bancoRepository.save(questao), null);
     }
 
+    /** Atualiza o conteúdo e o assunto dentro da matéria do professor, preservando o identificador da questão. */
     @Transactional
     public QuestaoDoProfessor atualizar(String email, Long questaoId, QuestaoRequest request) {
         validar(request);
@@ -124,6 +131,7 @@ public class BancoDeQuestoesService {
         return paraResposta(questao, estatisticas(professor.getMateria().getId(), null, questaoId).get(questaoId));
     }
 
+    /** Altera a disponibilidade da questão preservando a linha usada nas respostas e no histórico. */
     @Transactional
     public QuestaoDoProfessor definirAtiva(String email, Long questaoId, boolean ativa) {
         Professor professor = buscarProfessor(email);
@@ -186,6 +194,7 @@ public class BancoDeQuestoesService {
             porId.put(assunto.getId(), assunto);
         });
 
+        // O mesmo conjunto detecta enunciados que já estavam no banco e repetições dentro do lote.
         Set<String> existentes = new HashSet<>();
         bancoRepository.daMateria(materia.getId())
                 .forEach(q -> existentes.add(LeitorDeQuestoes.normalizar(q.getEnunciado())));
@@ -270,7 +279,7 @@ public class BancoDeQuestoesService {
         return questao;
     }
 
-    /** Container exigido pelo modelo: uma atividade por matéria agrupa as questões dos professores. */
+    /** Busca ou cria a atividade que agrupa as questões cadastradas por professores da matéria. */
     private Atividade atividadeDoBanco(Materia materia) {
         String titulo = "Banco de questões: " + materia.getNome();
         return atividadeRepository.findFirstByTituloOrderByIdAsc(titulo)

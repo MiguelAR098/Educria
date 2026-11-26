@@ -21,6 +21,11 @@ import java.util.HashMap;
 import java.time.Clock;
 import java.util.Set;
 
+/**
+ * Coordena o percurso de estudo entre o controlador, as entidades e os repositórios.
+ * O Spring registra o serviço e injeta suas dependências pelo construtor gerado por {@code @RequiredArgsConstructor}.
+ * As alterações de sessão do mesmo aluno são serializadas pelo bloqueio do titular dentro da transação.
+ */
 @Service
 @RequiredArgsConstructor
 public class SessaoEstudoService {
@@ -42,6 +47,13 @@ public class SessaoEstudoService {
 
     public record Inicio(EstadoSessao estado, boolean criada) {}
 
+    /**
+     * Devolve a sessão aberta do titular com a situação já gravada ou cria uma sessão com a primeira questão elegível.
+     *
+     * @param email identidade do aluno autenticado
+     * @param assuntoId assunto escolhido ou {@code null} para pedir recomendação
+     * @return estado da sessão e indicação de que ela acabou de ser criada
+     */
     @Transactional
     public Inicio iniciar(String email, Long assuntoId) {
         Aluno aluno = bloquearAluno(email);
@@ -76,6 +88,7 @@ public class SessaoEstudoService {
         return estado(buscar(email, id));
     }
 
+    /** Pausa, retoma ou encerra a sessão do titular. O encerramento exige resolver a fila de reaprendizagem. */
     @Transactional
     public EstadoSessao mudarSituacao(String email, Long id, SituacaoSessao destino) {
         bloquearAluno(email);
@@ -87,6 +100,11 @@ public class SessaoEstudoService {
         return estado(sessao);
     }
 
+    /**
+     * Apresenta o próximo passo autorizado ao titular. Uma repetição precisa ser respondida antes do avanço.
+     * Quando há margem, a seleção intercala questões distintas antes de voltar à pendência mais antiga.
+     * Se o banco se esgotou ou o limite de dez questões distintas foi atingido, a pendência pode voltar antes.
+     */
     @Transactional
     public EstadoSessao apresentar(String email, Long id, int posicao) {
         Aluno aluno = bloquearAluno(email);
@@ -112,6 +130,19 @@ public class SessaoEstudoService {
         return estado(sessao);
     }
 
+    /**
+     * Corrige a tentativa e mantém diagnóstico, pontos, histórico e agenda na mesma transação.
+     * Reenviar a mesma alternativa para um passo salvo devolve feedback a partir da resposta persistida
+     * e evita uma segunda gravação.
+     * Um passo ocupado por outro conteúdo ou uma tentativa fora da questão atual gera conflito.
+     *
+     * @param email identidade do aluno autenticado
+     * @param id sessão do titular
+     * @param questaoId questão já apresentada na sessão
+     * @param alternativa letra selecionada pelo aluno
+     * @param passo tentativa apresentada ou {@code null} no contrato legado
+     * @return feedback pedagógico e pontos registrados para a tentativa
+     */
     @Transactional
     public FeedbackResposta responder(String email, Long id, Long questaoId, String alternativa, Integer passo) {
         Aluno aluno = bloquearAluno(email);
@@ -148,6 +179,7 @@ public class SessaoEstudoService {
                 .orElseGet(() -> new DesempenhoPorAssunto(aluno, assunto));
         int nivelAnterior = desempenho.getNivelAtual();
         // O diagnóstico vigente é por assunto. O registro global permanece como legado, sem uma segunda progressão.
+        // A reaprendizagem registra novas tentativas e pode conceder pontos, mas não altera os contadores ou o nível.
         if (!sessao.repetindo()) {
             desempenho.registrarResposta(correta);
             desempenhos.save(desempenho);
@@ -186,12 +218,13 @@ public class SessaoEstudoService {
     }
 
     private FeedbackResposta feedback(RespostaAluno resposta, Long sessaoId) {
-        // O limite pelo passo da resposta conserva a dica original em reenvios antigos.
+        // O limite pelo passo impede erros posteriores de avançarem a etapa da orientação em um reenvio antigo.
         long erros = resposta.isCorreta() ? 0 : respostas.contarErrosAtePasso(
                 resposta.getAluno().getId(), sessaoId, resposta.getQuestao().getId(), resposta.getPasso());
         return FeedbackPedagogico.montar(resposta, erros);
     }
 
+    /** Combina o nível do assunto e a agenda do aluno para selecionar uma questão que ainda não apareceu. */
     private Optional<Escolha> selecionar(Aluno aluno, Long assuntoId, Set<Long> usadas, int revisoesUsadas, LocalDate hoje) {
         int nivel = desempenhos.findByAlunoIdAndAssuntoId(aluno.getId(), assuntoId)
                 .map(DesempenhoPorAssunto::getNivelAtual).orElse(NivelAdaptativo.MINIMO);

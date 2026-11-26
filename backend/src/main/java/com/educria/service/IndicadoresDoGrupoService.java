@@ -21,6 +21,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Compara indicadores agregados dos participantes com os dos demais alunos elegíveis no recorte.
+ * A matéria do professor delimita os níveis e as respostas que alimentam a comparação.
+ */
 @Service
 @RequiredArgsConstructor
 public class IndicadoresDoGrupoService {
@@ -31,6 +35,10 @@ public class IndicadoresDoGrupoService {
     private final AssuntoRepository assuntos;
     private final Clock relogio;
 
+    /**
+     * Consulta o contexto autorizado, os vínculos e os dados de aprendizagem em uma transação de leitura.
+     * A resposta contém médias, contagens e turmas de origem, sem identificação dos estudantes.
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public IndicadoresDoGrupo indicadores(String email, Long id) {
         var contexto = grupos.contextoAutorizado(email, id);
@@ -64,6 +72,7 @@ public class IndicadoresDoGrupoService {
                 resumir(naoParticipantes, medidas, respondeu, totalAssuntos));
     }
 
+    /** Cada aluno com a medida disponível tem o mesmo peso na média do recorte. */
     static IndicadoresDoGrupo.Recorte resumir(List<AlunoDoRecorte> alunos,
                                                Map<Long, CalculoDaTurma.MedidasDeAprendizagem> medidas,
                                                Set<Long> respondeu, int totalAssuntos) {

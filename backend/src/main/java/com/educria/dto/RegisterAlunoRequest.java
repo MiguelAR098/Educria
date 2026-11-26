@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.ToString;
 
+/** Dados aceitos no cadastro público. O perfil é definido pelo serviço como aluno. */
 @Data
 public class RegisterAlunoRequest {
 

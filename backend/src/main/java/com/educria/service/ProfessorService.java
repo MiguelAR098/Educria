@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+/** Prepara a visão do professor sobre suas turmas e o desempenho dos alunos na matéria em que leciona. */
 @Service
 @RequiredArgsConstructor
 public class ProfessorService {
@@ -46,6 +47,7 @@ public class ProfessorService {
 
     private record LinhaDaTurma(AlunoDaTurma aluno, Double nivelMedio) {}
 
+    /** Monta o perfil com as turmas vinculadas e suas contagens de alunos. */
     @Transactional(readOnly = true)
     public PerfilProfessor perfil(String email) {
         List<ProfessorRepository.LinhaDoPerfil> linhas = professorRepository.linhasDoPerfil(email);
@@ -69,7 +71,10 @@ public class ProfessorService {
                         .toList());
     }
 
-    /** Alunos de uma turma com nível e situação. Só para professor que leciona na turma. */
+    /**
+     * Resume o desempenho na matéria do professor para os alunos da turma autorizada.
+     * O isolamento de leitura repetível mantém estáveis as linhas lidas até o fim da transação.
+     */
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public TurmaComAlunos turma(String email, Long turmaId) {
         Professor professor = buscarProfessor(email);
@@ -159,6 +164,7 @@ public class ProfessorService {
                 SituacaoAluno.calcular(respostas, taxa, consecutivos));
     }
 
+    /** Cada aluno com dados tem o mesmo peso na média da turma. Os demais entram apenas nas contagens. */
     private static ResumoDaTurma resumir(List<LinhaDaTurma> linhas) {
         Double nivelMedio = linhas.stream()
                 .map(LinhaDaTurma::nivelMedio)

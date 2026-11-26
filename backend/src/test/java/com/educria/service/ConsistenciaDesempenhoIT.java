@@ -49,6 +49,7 @@ class ConsistenciaDesempenhoIT extends IntegracaoSqlServer {
         assuntoPort = assuntoComQuestao(portugues);
     }
 
+    /** Regressão que compara a projeção do painel com as medidas atuais de cada assunto. */
     @Test
     void desempenhoDoTitularAcompanhaAssuntosSemRecontarTentativasOuAlterarOLegado() throws Exception {
         var aluno = aluno();
@@ -70,6 +71,7 @@ class ConsistenciaDesempenhoIT extends IntegracaoSqlServer {
         conferirAssunto(aluno, portugues, assuntoPort, 1, 6);
     }
 
+    /** Dois professores da mesma turma devem obter diagnósticos diferentes, conforme sua matéria. */
     @Test
     void doisProfessoresLeemDiagnosticosDaPropriaMateriaNaTurmaENoDetalhe() throws Exception {
         var mat = professor(matematica);

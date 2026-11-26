@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
+/** Subtipo de {@link Usuario} cuja existência é registrada pela chave compartilhada em {@code admins}. */
 @Entity
 @Table(name = "admins")
 @PrimaryKeyJoinColumn(name = "usuario_id")

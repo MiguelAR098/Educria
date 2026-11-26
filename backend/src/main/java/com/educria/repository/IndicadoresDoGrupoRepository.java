@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** Usa SQL Server via JdbcClient para projetar somente dados necessários aos indicadores agregados. */
 @Repository
 @RequiredArgsConstructor
 public class IndicadoresDoGrupoRepository {
@@ -15,6 +16,10 @@ public class IndicadoresDoGrupoRepository {
     public record AlunoDoRecorte(Long id, Long origemId, String origemNome) {}
     public record NivelDoAssunto(Long alunoId, int nivelAtual, Integer nivelInicial) {}
 
+    /*
+     * Inclui participantes vigentes e alunos ativos das turmas do grupo. No grupo de comparação,
+     * exclui alunos com vínculo vigente em outro grupo ativo do mesmo professor que abranja a turma atual.
+     */
     private static final String RECORTE = """
             with recorte as (
                 select al.usuario_id as aluno_id, p.turma_origem_id
@@ -47,7 +52,11 @@ public class IndicadoresDoGrupoRepository {
                 .list();
     }
 
-    // Níveis históricos preenchidos sempre pertencem a uma sessão, pelo CHECK de respostas_aluno.
+    /**
+     * Consulta níveis dos assuntos praticados na matéria. OUTER APPLY obtém o último nível antes
+     * do início ou o nível anterior da primeira resposta histórica que registrar esse valor.
+     * Níveis históricos preenchidos sempre pertencem a uma sessão, pelo CHECK de respostas_aluno.
+     */
     public List<NivelDoAssunto> niveis(Long grupoId, Long professorId, Long materiaId, LocalDateTime inicio) {
         return jdbc.sql(RECORTE + """
                 select d.aluno_id, d.nivel_atual, coalesce(anterior.nivel_atual, primeira.nivel_anterior) as nivel_inicial
@@ -77,6 +86,7 @@ public class IndicadoresDoGrupoRepository {
                 .list();
     }
 
+    /** Identifica atividade no período sem carregar cada resposta. A sessão determina o assunto quando disponível. */
     public List<Long> alunosComRespostaNaJanela(Long grupoId, Long professorId, Long materiaId,
                                                LocalDateTime inicio, LocalDateTime fimExclusivo) {
         return jdbc.sql(RECORTE + """

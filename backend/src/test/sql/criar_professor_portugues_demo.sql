@@ -1,4 +1,4 @@
--- Etapa 2 de scripts/sqlserver/carregar-demo.sh. Login: portugues@educria.com / professor123
+-- Segunda etapa da carga local. Vincula o professor de Português à mesma turma da demonstração.
 IF XACT_STATE() <> 1 OR OBJECT_ID(N'tempdb..#demo_turma', N'U') IS NULL
     THROW 51020, N'Execute a carga pelo script scripts/sqlserver/carregar-demo.sh.', 1;
 
@@ -26,6 +26,7 @@ BEGIN
 END
 ELSE
 BEGIN
+    -- Aceita apenas a conta sintética já vinculada, sem alterar o cadastro ou o vínculo existente.
     IF NOT EXISTS (
         SELECT 1 FROM dbo.usuarios AS u
         JOIN dbo.professores AS p WITH (HOLDLOCK) ON p.usuario_id = u.id

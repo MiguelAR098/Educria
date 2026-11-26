@@ -12,6 +12,10 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Projeta o histórico privado com SQL nativo. Os campos usados como parâmetros mantêm o filtro pelo
+ * titular nas consultas, e as agregações evitam carregar uma entidade por tentativa.
+ */
 @Repository
 @RequiredArgsConstructor
 public class HistoricoSessaoRepository {
@@ -63,6 +67,7 @@ public class HistoricoSessaoRepository {
             rs.getObject("antes", Integer.class), rs.getObject("depois", Integer.class),
             rs.getObject("pontos_individuais", Long.class), rs.getBoolean("pontuacao_completa"));
 
+    /** Seleciona os IDs da página antes de agregar as tentativas. O cursor é exclusivo e segue a ordem decrescente. */
     public List<Indicadores> listar(String email, Long antesDe, int limite) {
         String filtro = antesDe == null ? "" : " and s.id < :antesDe";
         var consulta = jdbc.sql(ALVO + filtro + " order by s.id desc offset 0 rows fetch next :limite rows only\n"
@@ -90,6 +95,7 @@ public class HistoricoSessaoRepository {
                 """ + INDICADORES).param("email", email).param("id", id).query(LER).optional();
     }
 
+    /** Usa o assunto da sessão histórica para atribuir pontos, mesmo se a questão mudar de assunto depois. */
     public PontuacaoAcumulada pontuacaoAcumulada(String email, long id) {
         return jdbc.sql("""
                 select coalesce(sum(case when historica.assunto_id = atual.assunto_id
@@ -107,6 +113,7 @@ public class HistoricoSessaoRepository {
                 .single();
     }
 
+    /** Preserva questões apresentadas sem resposta e lista as tentativas múltiplas pela ordem dos passos. */
     public List<Item> questoes(String email, long id) {
         return jdbc.sql("""
                 select sq.indice + 1 as numero, q.enunciado, r.resposta_dada as alternativa, r.correta, r.passo

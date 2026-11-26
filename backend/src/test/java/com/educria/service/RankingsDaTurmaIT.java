@@ -43,6 +43,7 @@ class RankingsDaTurmaIT extends IntegracaoSqlServer {
     @Autowired private AtividadeColetivaService coletivas;
     @Autowired private AdminService administracao;
 
+    /** Compara a evolução do ranking com a do panorama e verifica a soma dos pontos no assunto da sessão. */
     @Test
     void agregaPontosDoAssuntoHistoricoEPreservaIndicadorDoPanorama() throws Exception {
         long turma = turma();
@@ -202,6 +203,7 @@ class RankingsDaTurmaIT extends IntegracaoSqlServer {
         assertEquals(0L, id("select count_big(*) from dbo.atividades_coletivas where turma_id=?", turma));
     }
 
+    /** Verifica a concorrência tanto na primeira criação do saldo quanto depois de já existir uma linha. */
     @Test
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void conservaSomaComLancamentosConcorrentesNaInicializacaoENoSaldoExistente() throws Exception {

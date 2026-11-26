@@ -9,9 +9,8 @@ import org.springframework.http.HttpStatus;
 import java.time.LocalDateTime;
 
 /**
- * Pontuação pública por turma (economia coletiva).
- * Isolada completamente do DesempenhoAdaptativo.
- * Não existe FK nem serviço que una os dois mundos.
+ * Guarda o saldo compartilhado pelos integrantes da turma, separado do desempenho individual.
+ * A chave estrangeira única permite um único saldo por turma.
  */
 @Entity
 @Table(name = "pontuacao_coletiva")
@@ -38,6 +37,7 @@ public class PontuacaoColetiva {
     @Column(name = "atualizado_em")
     private LocalDateTime atualizadoEm;
 
+    /** Soma valores positivos e rejeita lançamentos que excederiam o limite do inteiro armazenado. */
     public void adicionarPontos(int pontos) {
         if (pontos > 0) {
             if (pontosTotais > Integer.MAX_VALUE - pontos) {
@@ -47,6 +47,7 @@ public class PontuacaoColetiva {
         }
     }
 
+    /** Desconta um valor positivo sem deixar o saldo abaixo de zero. */
     public void removerPontos(int pontos) {
         if (pontos > 0) {
             this.pontosTotais = Math.max(0, this.pontosTotais - pontos);

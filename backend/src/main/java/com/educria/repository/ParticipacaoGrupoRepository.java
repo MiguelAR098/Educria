@@ -10,6 +10,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+/** Consulta elegibilidade e visibilidade dos vínculos com base nas turmas atuais dos alunos. */
 public interface ParticipacaoGrupoRepository extends JpaRepository<ParticipacaoGrupo, Long> {
     interface AlunoElegivel {
         Long getAlunoId();
@@ -31,6 +32,7 @@ public interface ParticipacaoGrupoRepository extends JpaRepository<ParticipacaoG
     List<AlunoElegivel> alunosElegiveis(@Param("alunosIds") Collection<Long> alunosIds,
                                       @Param("turmasIds") Collection<Long> turmasIds);
 
+    /** Inclui apenas vínculos vigentes de alunos ativos em alguma turma autorizada do grupo. */
     @Query("""
             select a.id as alunoId, a.nome as nome, p.turmaOrigem.id as turmaOrigemId,
                    a.turma.id as turmaAtualId, p.entradaEm as entradaEm

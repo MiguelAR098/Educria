@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** Cadastro de grupos ou projetos e gestão de participantes pelo professor autenticado. */
 @RestController
 @RequestMapping("/api/professor/grupos")
 @RequiredArgsConstructor
@@ -63,6 +64,7 @@ public class GrupoPedagogicoController {
         return grupos.incluir(usuario.getUsername(), id, pedido);
     }
 
+    /** DELETE remove o vínculo de participação e retorna HTTP 204 ao concluir. */
     @DeleteMapping("/{id}/participantes/{alunoId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remover(@AuthenticationPrincipal UserDetails usuario, @PathVariable @Positive Long id,

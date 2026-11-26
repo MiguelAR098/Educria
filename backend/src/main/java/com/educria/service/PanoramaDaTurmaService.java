@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/** Aplica o recorte de turma e matéria antes de calcular o panorama ou os rankings privados. */
 @Service
 @RequiredArgsConstructor
 public class PanoramaDaTurmaService {
@@ -47,6 +48,10 @@ public class PanoramaDaTurmaService {
         return calcular(turmaId, materiaId, hoje, alunosDaTurma(turmaId), vencidas);
     }
 
+    /**
+     * Classifica os alunos da turma autorizada por pontuação individual acumulada na matéria
+     * e por evolução de nível na janela do panorama. Métricas ausentes permanecem sem posição.
+     */
     @Transactional(readOnly = true)
     public RankingsDaTurma rankings(String email, Long turmaId) {
         var materia = professorDaTurma(email, turmaId).getMateria();

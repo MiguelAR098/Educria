@@ -19,6 +19,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+/**
+ * Interpreta a autenticação Bearer antes da autorização da rota. {@link OncePerRequestFilter}
+ * organiza a execução do filtro por requisição, e o contexto do Spring Security fornece o usuário ao controller.
+ */
 @Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
@@ -42,6 +46,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Recarrega a conta e suas permissões do banco. Desativação e troca de perfil valem mesmo com JWT vigente.
         UserDetails userDetails;
         try {
             String userEmail = jwtService.extractUsername(authHeader.substring(7));

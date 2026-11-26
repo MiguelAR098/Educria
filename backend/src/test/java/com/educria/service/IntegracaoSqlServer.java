@@ -11,6 +11,10 @@ import java.util.Base64;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
+/**
+ * Base das integrações. O perfil de teste recebe a conexão por {@code @DynamicPropertySource}
+ * somente depois da validação do endereço local e do marcador no SQL Server.
+ */
 @ActiveProfiles("integracao")
 abstract class IntegracaoSqlServer {
     static final String VARIAVEL_URL = "EDUCRIA_SQLSERVER_TEST_URL";

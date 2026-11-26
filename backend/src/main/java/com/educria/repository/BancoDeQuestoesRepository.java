@@ -11,12 +11,14 @@ import java.util.Optional;
 /** Consultas do professor sobre as questões da sua matéria (inclui as desativadas). */
 public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> {
 
+    /** Projeção de uma célula da matriz de cobertura retornada pela agregação. */
     interface ContagemPorDificuldade {
         Long getAssuntoId();
         Integer getDificuldade();
         long getTotal();
     }
 
+    /** Conta somente questões elegíveis pela mesma regra usada na seleção adaptativa. */
     @Query("""
             select a.id as assuntoId, q.dificuldade as dificuldade, count(q) as total
             from Questao q join q.assunto a
@@ -26,6 +28,7 @@ public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> 
             """)
     List<ContagemPorDificuldade> contarElegiveis(@Param("materiaId") Long materiaId);
 
+    /** Carrega assunto e autor para montar a lista sem uma consulta adicional por questão. */
     @Query("""
             select q from Questao q
             join fetch q.assunto a
@@ -53,7 +56,7 @@ public interface BancoDeQuestoesRepository extends JpaRepository<Questao, Long> 
             """)
     Optional<Questao> buscar(@Param("id") Long id);
 
-    /** Para cada questão: {id, total de respostas, total de acertos}. */
+    /** Retorna identificador da questão, total de respostas e acertos sem expor os registros dos alunos. */
     @Query("""
             select q.id, count(r), sum(cast(case when r.correta = true then 1 else 0 end as Long))
             from RespostaAluno r
