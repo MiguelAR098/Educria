@@ -18,7 +18,10 @@ SELECT N'sessao_questoes', COUNT_BIG(*) FROM dbo.sessao_questoes UNION ALL
 SELECT N'respostas_aluno', COUNT_BIG(*) FROM dbo.respostas_aluno UNION ALL
 SELECT N'repeticao_espacada', COUNT_BIG(*) FROM dbo.repeticao_espacada UNION ALL
 SELECT N'atividades_coletivas', COUNT_BIG(*) FROM dbo.atividades_coletivas UNION ALL
-SELECT N'recados', COUNT_BIG(*) FROM dbo.recados;
+SELECT N'recados', COUNT_BIG(*) FROM dbo.recados UNION ALL
+SELECT N'grupos_pedagogicos', COUNT_BIG(*) FROM dbo.grupos_pedagogicos UNION ALL
+SELECT N'grupo_turmas', COUNT_BIG(*) FROM dbo.grupo_turmas UNION ALL
+SELECT N'grupo_participacoes', COUNT_BIG(*) FROM dbo.grupo_participacoes;
 SELECT tabela,total FROM @contagem ORDER BY tabela;
 IF EXISTS (SELECT 1 FROM @contagem WHERE total < 3)
     THROW 51010, N'Uma tabela do domínio não atingiu três registros.', 1;

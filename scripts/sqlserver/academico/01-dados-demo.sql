@@ -87,5 +87,22 @@ FROM dbo.desempenho_por_assunto d JOIN @estudo e ON d.aluno_id=e.aluno AND d.ass
 INSERT dbo.repeticao_espacada(aluno_id,questao_id,proxima_revisao,ultima_revisao)
 SELECT aluno,questao,DATEADD(day,1,CONVERT(date,DATEADD(second,2,@respondido))),CONVERT(date,DATEADD(second,2,@respondido))
 FROM @estudo;
+
+DECLARE @grupos TABLE(id bigint PRIMARY KEY, professor bigint NOT NULL, arquivado_em datetimeoffset(6) NULL);
+INSERT dbo.grupos_pedagogicos(professor_id,nome,tipo,criado_em,arquivado_em)
+OUTPUT inserted.id,inserted.professor_id,inserted.arquivado_em INTO @grupos(id,professor,arquivado_em)
+SELECT professor,CONCAT(N'Iniciativa de Matemática ',n),
+       CASE WHEN n=2 THEN N'PROJETO' ELSE N'GRUPO' END,@inicio,
+       CASE WHEN n=3 THEN DATEADD(hour,12,@inicio) END
+FROM @vinculos;
+
+INSERT dbo.grupo_turmas(grupo_id,turma_id)
+SELECT g.id,pt.turma_id FROM @grupos g JOIN dbo.professor_turmas pt ON pt.professor_id=g.professor;
+
+INSERT dbo.grupo_participacoes(grupo_id,aluno_id,turma_origem_id,entrada_em,saida_em)
+SELECT g.id,v.aluno,gt.turma_id,DATEADD(hour,1,@inicio),g.arquivado_em
+FROM @grupos g JOIN dbo.grupo_turmas gt ON gt.grupo_id=g.id
+JOIN @vinculos v ON v.turma=gt.turma_id;
+
 EXEC sys.sp_addextendedproperty @name=N'EducriaDemonstracao', @value=N'1';
 COMMIT;
