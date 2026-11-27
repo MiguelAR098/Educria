@@ -77,9 +77,9 @@ Na raiz do projeto, inicie o Codespace com o perfil de desenvolvimento. Se o ini
 SPRING_PROFILES_ACTIVE=dev bash scripts/iniciar.sh
 ```
 
-O schema permite questões anteriores à classificação com assunto, dificuldade ou explicação nulos. O banco aceita dificuldade de 1 a 10. As 80 questões do protótipo usam as dificuldades originais de 1 a 5, com duas questões em cada dificuldade de cada assunto. A ordem 1 a 80 corresponde a q1 até q80. O importador preserva as quatro alternativas e o gabarito A–D e guarda a explicação no backend.
+O schema permite questões anteriores à classificação com assunto, dificuldade ou explicação nulos. O conjunto de demonstração tem 160 questões de Matemática, duas para cada combinação de assunto e dificuldade de 1 a 10. As ordens 1 a 80 correspondem às questões q1 a q80 do protótipo, nos níveis de 1 a 5. As ordens 81 a 160 completam os níveis de 6 a 10. A carga preserva as quatro alternativas e o gabarito A–D e guarda a explicação no backend.
 
-O perfil `dev` habilita um callback do Flyway após a migração. Ele reserva o ID −1 de `atividades` para o conjunto de demonstração e insere questões ausentes pela ordem dentro dessa atividade. O bloqueio da linha da atividade serializa cargas simultâneas. Se esse ID já estiver ocupado por outra atividade, a carga falha e a transação é revertida. Iniciar com o perfil padrão aplica o esquema. Dados de demonstração já carregados permanecem no banco. O cadastro de alunos e o dashboard continuam usando as mesmas APIs.
+O perfil `dev` habilita um callback do Flyway após a migração. Sob bloqueio transacional, ele reserva o ID −1 de `atividades` para a demonstração e insere apenas as questões ausentes pela ordem. Se o ID estiver ocupado por outra atividade, a carga falha. Em uma base com a carga antiga, o callback atualiza o marcador da atividade e corrige a alternativa C da questão 26 e o enunciado da questão 71 quando os itens ativos, sem autor, ainda conferem com o conteúdo original. As duas correções preservam IDs, gabaritos e histórico de respostas.
 
 ### Conferir a distribuição no Codespace
 
@@ -87,20 +87,15 @@ Com os serviços em execução, abra outro terminal na raiz:
 
 ```bash
 docker compose exec -T db sh -c 'export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"; exec /opt/mssql-tools18/bin/sqlcmd -S localhost -C -U sa -d educria -b' <<'SQL'
-SELECT s.nome AS assunto, count(*) AS total,
-       count(CASE WHEN q.dificuldade = 1 THEN 1 END) AS d1,
-       count(CASE WHEN q.dificuldade = 2 THEN 1 END) AS d2,
-       count(CASE WHEN q.dificuldade = 3 THEN 1 END) AS d3,
-       count(CASE WHEN q.dificuldade = 4 THEN 1 END) AS d4,
-       count(CASE WHEN q.dificuldade = 5 THEN 1 END) AS d5
+SELECT s.nome AS assunto, q.dificuldade, count(*) AS total
 FROM questoes q JOIN assuntos s ON s.id = q.assunto_id
 WHERE q.atividade_id = -1
-GROUP BY s.id, s.nome ORDER BY s.id;
+GROUP BY s.id, s.nome, q.dificuldade ORDER BY s.id, q.dificuldade;
 GO
 SQL
 ```
 
-O resultado esperado são oito linhas, com total 10 e contagens `2, 2, 2, 2, 2` em cada uma.
+Em uma base limpa, a consulta retorna 80 combinações, cada uma com duas questões.
 
 ### Repetir os testes
 

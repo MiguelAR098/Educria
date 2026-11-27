@@ -30,6 +30,10 @@ export EDUCRIA_SQLSERVER_URL='jdbc:sqlserver://127.0.0.1:1433;databaseName=educr
 export EDUCRIA_SQLSERVER_USER=sa
 export EDUCRIA_SQLSERVER_PASSWORD="$MSSQL_SA_PASSWORD"
 
+readonly host_api=127.0.0.1 porta_api=8080
+readonly url_api="http://${host_api}:${porta_api}"
+export EDUCRIA_BACKEND_URL="$url_api"
+
 echo 'Iniciando SQL Server de desenvolvimento…'
 docker compose up -d --wait --wait-timeout 120 db
 docker compose exec -T db sh -c 'export SQLCMDPASSWORD="$MSSQL_SA_PASSWORD"; exec /opt/mssql-tools18/bin/sqlcmd -S localhost -C -U sa -d master -b' <<'SQL'
@@ -51,17 +55,18 @@ encerrar() {
 trap encerrar EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-java -jar backend/target/educria-backend-1.0.0-SNAPSHOT.jar &
+java -jar backend/target/educria-backend-1.0.0-SNAPSHOT.jar \
+  --server.address="$host_api" --server.port="$porta_api" &
 api_pid=$!
 pronto=false
 for ((i=0; i<120; i++)); do
   kill -0 "$api_pid" 2>/dev/null || { echo 'Falha ao iniciar o Spring. Confira o log acima.' >&2; exit 1; }
   status=$(curl --silent --max-time 2 --output /dev/null --write-out '%{http_code}' \
-    http://127.0.0.1:8080/api/aluno/desempenho) || status=000
+    "$url_api/api/aluno/desempenho") || status=000
   if [[ "$status" == 403 || "$status" == 401 ]]; then pronto=true; break; fi
   sleep 1
 done
-"$pronto" || { echo 'Tempo esgotado aguardando o Spring na porta 8080.' >&2; exit 1; }
+"$pronto" || { echo "Tempo esgotado aguardando o Spring na porta $porta_api." >&2; exit 1; }
 echo 'Abra a porta 3000 na aba Portas quando o Next indicar Ready. Ctrl+C encerra os dois servidores.'
 (cd frontend && exec node node_modules/next/dist/bin/next start -H 0.0.0.0 -p 3000) &
 web_pid=$!

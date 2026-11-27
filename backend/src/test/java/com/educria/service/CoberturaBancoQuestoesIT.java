@@ -34,6 +34,10 @@ class CoberturaBancoQuestoesIT extends IntegracaoSqlServer {
     private static final String QUESTOES = "/api/professor/questoes";
     private static final String COBERTURA = QUESTOES + "/cobertura";
     private static final int[] LINHA_VAZIA = new int[10];
+    private static final String DESCRICAO_DEMO_LEGADA = "Banco de questões do protótipo EDUCRIA (q1 a q80).";
+    private static final String DESCRICAO_DEMO_ATUAL = "Banco demonstrativo de Matemática do EDUCRIA (questões 1 a 160).";
+    private static final String PIZZA_LEGADA = "Duas pizzas são cortadas em 8 fatias cada. Cinco pessoas comem 3 fatias. Quantas sobram?";
+    private static final String PIZZA_CORRIGIDA = "Duas pizzas são cortadas em 8 fatias cada. Cinco pessoas comem 3 fatias cada uma. Quantas sobram?";
 
     @Autowired private JdbcTemplate db;
     @Autowired private MockMvc mvc;
@@ -222,15 +226,9 @@ class CoberturaBancoQuestoesIT extends IntegracaoSqlServer {
     @Test
     void ampliaCargaOriginalSemAlterarEdicoesInativasOuHistorico() throws Exception {
         String seed = cargaDemo();
-        String original = seed.substring(0, seed.indexOf("    -- Ampliação nas dificuldades"))
-                .replace("N'2/6', N'3/4', N'1/6'", "N'2/6', N'3/4', N'1/3'")
-                .replace("3 fatias cada uma.", "3 fatias.")
-                .replace("São 16 fatias. As cinco pessoas comem 5 × 3 = 15 fatias.", "São 16 fatias e 15 foram comidas.");
-        db.execute(original
-                + seed.substring(seed.indexOf("    DECLARE @materia bigint")));
-        assertEquals(80, id("select count_big(*) from dbo.questoes where atividade_id=-1"));
+        prepararCargaLegada(seed);
         db.update("update dbo.questoes set ativa=0, enunciado=N'Enunciado preservado' where atividade_id=-1 and ordem=1");
-        long questao = id("select id from dbo.questoes where atividade_id=-1 and ordem=2");
+        long questao = id("select id from dbo.questoes where atividade_id=-1 and ordem=26");
         long assunto = id("select assunto_id from dbo.questoes where id=?", questao);
         long aluno = api(post("/api/auth/register"), null, Map.of("nome", "Estudante", "email", emailDeTeste(),
                 "senha", segredoTemporario()), 201).path("id").asLong();
@@ -241,22 +239,44 @@ class CoberturaBancoQuestoesIT extends IntegracaoSqlServer {
         db.update("insert dbo.sessao_questoes(sessao_id,indice,questao_id) values (?,0,?)", sessao, questao);
         db.update("""
                 insert dbo.respostas_aluno(aluno_id,questao_id,sessao_id,passo,resposta_dada,correta,pontos_individuais)
-                values (?,?,?,1,N'C',1,10)
+                values (?,?,?,1,N'B',1,10)
                 """, aluno, questao, sessao);
         db.update("insert dbo.repeticao_espacada(aluno_id,questao_id,intervalo_atual,proxima_revisao) values (?,?,'D1','2030-01-01')",
                 aluno, questao);
 
-        String originais = "select * from dbo.questoes where atividade_id=-1 and ordem between 1 and 80 order by ordem";
-        var antesQuestoes = db.queryForList(originais);
+        String questoesDemo = "select * from dbo.questoes where atividade_id=-1 order by ordem";
+        String descricaoDemo = "select enunciado from dbo.atividades where id=-1";
+        var questoesOriginaisEsperadas = db.queryForList(questoesDemo);
+        questoesOriginaisEsperadas.get(26 - 1).put("alternativa_c", "1/6");
+        questoesOriginaisEsperadas.get(71 - 1).put("enunciado", PIZZA_CORRIGIDA);
         var antesRespostas = db.queryForList("select * from dbo.respostas_aluno where sessao_id=?", sessao);
         var antesRevisoes = db.queryForList("select * from dbo.repeticao_espacada where aluno_id=?", aluno);
         db.execute(seed);
+        var questoesAmpliadas = db.queryForList(questoesDemo);
+        assertEquals(160, questoesAmpliadas.size());
+        assertEquals(questoesOriginaisEsperadas, questoesAmpliadas.subList(0, 80));
+        assertEquals(DESCRICAO_DEMO_ATUAL, db.queryForObject(descricaoDemo, String.class));
         db.execute(seed);
-        assertEquals(160, id("select count_big(*) from dbo.questoes where atividade_id=-1"));
-        assertEquals(antesQuestoes, db.queryForList(originais));
+        assertEquals(questoesAmpliadas, db.queryForList(questoesDemo));
+        assertEquals(DESCRICAO_DEMO_ATUAL, db.queryForObject(descricaoDemo, String.class));
         assertEquals(antesRespostas, db.queryForList("select * from dbo.respostas_aluno where sessao_id=?", sessao));
         assertEquals(antesRevisoes, db.queryForList("select * from dbo.repeticao_espacada where aluno_id=?", aluno));
         assertTotais(cobertura(professor(materia("Matemática"))), 159, 0);
+    }
+
+    @Test
+    void preservaQuestoesEditadasOuDesativadasNaCargaLegada() throws Exception {
+        String seed = cargaDemo();
+        prepararCargaLegada(seed);
+        db.update("update dbo.questoes set explicacao=N'Explicação editada' where atividade_id=-1 and ordem=26");
+        db.update("update dbo.questoes set ativa=0 where atividade_id=-1 and ordem=71");
+        String questoesProtegidas = "select * from dbo.questoes where atividade_id=-1 and ordem in (26, 71) order by ordem";
+        var antes = db.queryForList(questoesProtegidas);
+
+        db.execute(seed);
+
+        assertEquals(160, id("select count_big(*) from dbo.questoes where atividade_id=-1"));
+        assertEquals(antes, db.queryForList(questoesProtegidas));
     }
 
     @Test
@@ -300,6 +320,17 @@ class CoberturaBancoQuestoesIT extends IntegracaoSqlServer {
     private static String cargaDemo() throws Exception {
         return new ClassPathResource("db/sqlserver/demo/afterMigrate__questoes_de_matematica.sql")
                 .getContentAsString(StandardCharsets.UTF_8);
+    }
+
+    private void prepararCargaLegada(String seed) {
+        int inicioAmpliacao = seed.indexOf("    -- Ampliação nas dificuldades");
+        int inicioCatalogo = seed.indexOf("    DECLARE @materia bigint");
+        assertTrue(inicioAmpliacao > 0 && inicioCatalogo > inicioAmpliacao);
+        db.execute(seed.substring(0, inicioAmpliacao) + seed.substring(inicioCatalogo));
+        assertEquals(80, id("select count_big(*) from dbo.questoes where atividade_id=-1"));
+        assertEquals(1, db.update("update dbo.atividades set enunciado=? where id=-1", DESCRICAO_DEMO_LEGADA));
+        assertEquals(1, db.update("update dbo.questoes set alternativa_c=N'1/3' where atividade_id=-1 and ordem=26"));
+        assertEquals(1, db.update("update dbo.questoes set enunciado=? where atividade_id=-1 and ordem=71", PIZZA_LEGADA));
     }
 
     private JsonNode cobertura(String token) throws Exception {

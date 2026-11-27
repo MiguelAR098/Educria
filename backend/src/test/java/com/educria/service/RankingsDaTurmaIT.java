@@ -43,6 +43,74 @@ class RankingsDaTurmaIT extends IntegracaoSqlServer {
     @Autowired private AtividadeColetivaService coletivas;
     @Autowired private AdminService administracao;
 
+    @Test
+    void pontuaTentativasReaisEmSessoesDistintasEReconsultaTotaisPrivados() throws Exception {
+        long turma = turma();
+        long outra = turma();
+        long matematica = materia("Matemática");
+        long assunto = id("insert dbo.assuntos(materia_id,nome) output inserted.id values (?,?)",
+                matematica, UUID.randomUUID().toString());
+        Pessoa docente = professor(matematica, turma);
+        Pessoa outroDocente = professor(matematica, outra);
+        Pessoa titular = aluno("Titular", turma);
+        Pessoa outroAluno = aluno("Outro", outra);
+        db.update("insert dbo.desempenho_adaptativo(aluno_id) values (?),(?)", titular.id(), outroAluno.id());
+        db.update("insert dbo.pontuacao_coletiva(turma_id,pontos_totais) values (?,4000)", turma);
+        long questao = questao(assunto);
+        db.update("update dbo.questoes set alternativa_a=N'Certa', alternativa_b=N'Errada' where id=?", questao);
+        resposta(titular.id(), assunto, questao, 1, 1, false, null);
+        resposta(outroAluno.id(), assunto, questao, 1, 2, true, 50);
+
+        String sessoes = "/api/aluno/sessoes";
+        var primeira = api(post(sessoes), titular.token(), Map.of("assuntoId", assunto), 201);
+        long idPrimeira = primeira.at("/sessao/id").asLong();
+        assertEquals(questao, primeira.at("/questaoAtual/id").asLong());
+        String rotaPrimeira = sessoes + "/" + idPrimeira;
+        String respostaPrimeira = rotaPrimeira + "/questoes/" + questao + "/resposta";
+        var pedido = Map.of("passo", 1, "alternativa", "A");
+        var feedback = api(put(respostaPrimeira), titular.token(), pedido, 200);
+        assertEquals(30, feedback.path("pontosConcedidos").asInt());
+        assertEquals(feedback, api(put(respostaPrimeira), titular.token(), pedido, 200));
+        api(put(respostaPrimeira), titular.token(), Map.of("passo", 1, "alternativa", "B"), 409);
+        assertEquals(1L, id("select count_big(*) from dbo.respostas_aluno where sessao_id=?", idPrimeira));
+        assertEquals(30L, id("select pontos_individuais from dbo.respostas_aluno where sessao_id=?", idPrimeira));
+        assertEquals(feedback, api(get(rotaPrimeira), titular.token(), null, 200).path("feedback"));
+        api(put(rotaPrimeira + "/encerrar"), titular.token(), null, 200);
+        var resultado = api(get(rotaPrimeira + "/resultado"), titular.token(), null, 200);
+        assertEquals(30, resultado.at("/sessao/pontosIndividuais").asInt());
+        assertTrue(resultado.at("/sessao/pontuacaoCompleta").asBoolean());
+        assertTrue(resultado.at("/anterior/pontosIndividuais").isNull());
+        assertFalse(resultado.at("/anterior/pontuacaoCompleta").asBoolean());
+        api(get(rotaPrimeira + "/resultado"), outroAluno.token(), null, 404);
+
+        // A revisão vencida torna a mesma questão elegível em outra sessão de teste.
+        db.update("update dbo.repeticao_espacada set proxima_revisao='2000-01-01' where aluno_id=? and questao_id=?",
+                titular.id(), questao);
+        var segunda = api(post(sessoes), titular.token(), Map.of("assuntoId", assunto), 201);
+        assertEquals(questao, segunda.at("/questaoAtual/id").asLong());
+        String rotaSegunda = sessoes + "/" + segunda.at("/sessao/id").asLong();
+        var novo = api(put(rotaSegunda + "/questoes/" + questao + "/resposta"), titular.token(), pedido, 200);
+        assertEquals(15, novo.path("pontosConcedidos").asInt());
+        api(put(rotaSegunda + "/encerrar"), titular.token(), null, 200);
+        resultado = api(get(rotaSegunda + "/resultado"), titular.token(), null, 200);
+        assertEquals(15, resultado.at("/sessao/pontosIndividuais").asInt());
+        assertEquals(30, resultado.at("/anterior/pontosIndividuais").asInt());
+        assertEquals(45, resultado.path("pontosIndividuaisNoAssunto").asInt());
+        assertEquals(45, resultado.path("pontosIndividuaisNaMateria").asInt());
+        var historico = api(get(sessoes + "/historico"), titular.token(), null, 200).path("sessoes");
+        assertEquals(15, historico.get(0).path("pontosIndividuais").asInt());
+        assertEquals(30, historico.get(1).path("pontosIndividuais").asInt());
+        assertTrue(historico.get(2).path("pontosIndividuais").isNull());
+
+        assertEquals(45, api(get("/api/aluno/desempenho"), titular.token(), null, 200).path("pontosIndividuais").asInt());
+        assertEquals(50, api(get("/api/aluno/desempenho"), outroAluno.token(), null, 200).path("pontosIndividuais").asInt());
+        var ranking = rankings(turma, docente.token()).path("rankingPontuacao");
+        assertEquals(1, ranking.size());
+        linha(ranking.get(0), titular.id(), 1, "pontos", 45);
+        api(get(rota(turma) + "/rankings"), outroDocente.token(), null, 403);
+        assertEquals(4000L, id("select pontos_totais from dbo.pontuacao_coletiva where turma_id=?", turma));
+    }
+
     /** Compara a evolução do ranking com a do panorama e verifica a soma dos pontos no assunto da sessão. */
     @Test
     void agregaPontosDoAssuntoHistoricoEPreservaIndicadorDoPanorama() throws Exception {

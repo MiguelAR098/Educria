@@ -194,6 +194,15 @@ export interface BancoDeQuestoes {
   questoes: QuestaoDoProfessor[];
 }
 
+export interface CoberturaBancoQuestoes {
+  assuntos: (AssuntoSimples & {
+    contagens: number[];
+    total: number;
+  })[];
+  total: number;
+  combinacoesVazias: number;
+}
+
 export interface QuestaoPayload {
   assuntoId: number;
   dificuldade: number;

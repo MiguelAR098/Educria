@@ -14,6 +14,24 @@ public interface RespostaAlunoRepository extends JpaRepository<RespostaAluno, Lo
     Optional<RespostaAluno> findBySessaoIdAndPassoAndAlunoId(Long sessao, int passo, Long aluno);
     boolean existsBySessaoIdAndPasso(Long sessao, int passo);
 
+    interface UltimaTentativa {
+        boolean getCorreta();
+    }
+
+    Optional<UltimaTentativa> findFirstByAlunoIdAndQuestaoIdOrderByRespondidoEmDescIdDesc(Long aluno, Long questao);
+
+    @Query("""
+            select coalesce(sum(cast(r.pontosIndividuais as Long)), 0L) from RespostaAluno r
+            where r.sessao.id = :sessao and r.aluno.id = :aluno and r.pontosIndividuais is not null
+            """)
+    long pontosDaSessao(@Param("sessao") Long sessao, @Param("aluno") Long aluno);
+
+    @Query("""
+            select coalesce(sum(cast(r.pontosIndividuais as Long)), 0L) from RespostaAluno r
+            where r.aluno.id = :aluno and r.pontosIndividuais is not null
+            """)
+    long pontosDoAluno(@Param("aluno") Long aluno);
+
     @Query("""
             select count(r) from RespostaAluno r
             where r.aluno.id = :aluno and r.sessao.id = :sessao and r.questao.id = :questao

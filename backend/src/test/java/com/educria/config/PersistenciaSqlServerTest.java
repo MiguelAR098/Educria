@@ -2,7 +2,10 @@ package com.educria.config;
 
 import com.educria.domain.entity.*;
 import com.educria.dto.QuestaoParaAluno;
+import com.educria.dto.MateriaResumo;
+import com.educria.dto.AssuntoDoAluno;
 import com.educria.repository.AssuntoRepository;
+import com.educria.repository.MateriaRepository;
 import com.educria.repository.QuestaoRepository;
 import com.educria.repository.RespostaAlunoRepository;
 import org.hibernate.boot.Metadata;
@@ -68,6 +71,10 @@ class PersistenciaSqlServerTest {
             assertEquals("nvarchar(20)", tipo(metadata, Usuario.class, "perfil"));
             assertTrue(tipo(metadata, SessaoEstudo.class, "iniciadaEm").startsWith("datetimeoffset"));
             assertTrue(tipo(metadata, RespostaAluno.class, "respondidoEm").startsWith("datetime2"));
+            assertEquals("int", tipo(metadata, RespostaAluno.class, "pontosIndividuais"));
+            var pontos = metadata.getEntityBinding(RespostaAluno.class.getName()).getProperty("pontosIndividuais");
+            assertTrue(((Column) pontos.getSelectables().getFirst()).isNullable());
+            assertFalse(pontos.isUpdateable());
             try (var factory = metadata.buildSessionFactory()) {
                 var motor = factory.unwrap(SessionFactoryImplementor.class).getQueryEngine();
                 assertNotNull(motor.getSqmFunctionRegistry().findFunctionDescriptor("educria_tamanho_texto"));
@@ -78,6 +85,14 @@ class PersistenciaSqlServerTest {
                         .getAnnotation(Query.class).value(), Assunto.class);
                 tradutor.translate(RespostaAlunoRepository.class.getMethod("fila", Long.class, Long.class)
                         .getAnnotation(Query.class).value(), Object[].class);
+                tradutor.translate(RespostaAlunoRepository.class.getMethod("pontosDaSessao", Long.class, Long.class)
+                        .getAnnotation(Query.class).value(), Long.class);
+                tradutor.translate(RespostaAlunoRepository.class.getMethod("pontosDoAluno", Long.class)
+                        .getAnnotation(Query.class).value(), Long.class);
+                tradutor.translate(MateriaRepository.class.getMethod("listarCatalogo", Long.class)
+                        .getAnnotation(Query.class).value(), MateriaResumo.class);
+                tradutor.translate(MateriaRepository.class.getMethod("listarAssuntos", Long.class, Long.class)
+                        .getAnnotation(Query.class).value(), AssuntoDoAluno.class);
             }
         } finally {
             StandardServiceRegistryBuilder.destroy(registry);

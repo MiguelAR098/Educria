@@ -37,6 +37,9 @@ public class RespostaAluno {
     @Column(nullable = false)
     private boolean correta;
 
+    @Column(name = "pontos_individuais", updatable = false)
+    private Integer pontosIndividuais;
+
     @Column(name = "nivel_anterior", updatable = false)
     private Integer nivelAnterior;
 

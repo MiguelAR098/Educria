@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { AuthGuard } from "@/components/AuthGuard";
+import { EstadoConsulta } from "@/components/EstadoConsulta";
 import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,23 +67,29 @@ export default function AdminDashboardPage() {
   const [alunoIdDesvincular, setAlunoIdDesvincular] = useState("");
 
   // ── Query: lista de turmas ────────────────────────────────────────────────
-  const { data: turmas = [], isLoading: carregandoTurmas } = useQuery<TurmaResumo[]>({
+  const consultaTurmas = useQuery({
     queryKey: ["admin", "turmas"],
-    queryFn: async () => {
-      const { data } = await api.get("/api/admin/turmas");
+    queryFn: async ({ signal }) => {
+      const { data } = await api.get<TurmaResumo[]>("/api/admin/turmas", { signal });
       return data;
     },
   });
+  const turmas = consultaTurmas.data;
+  const turmaPontos = turmas?.find((t) => String(t.id) === turmaIdPontos);
+  const turmaVincular = turmas?.find((t) => String(t.id) === turmaIdVincular);
+  const turmaDesvincular = turmas?.find((t) => String(t.id) === turmaIdDesvincular);
 
   // ── Query: alunos da turma selecionada (desvincular) ─────────────────────
-  const { data: alunosDaTurma = [] } = useQuery<AlunoResumo[]>({
+  const consultaAlunos = useQuery({
     queryKey: ["admin", "turma-alunos", turmaIdDesvincular],
-    queryFn: async () => {
-      const { data } = await api.get(`/api/admin/turmas/${turmaIdDesvincular}/alunos`);
+    queryFn: async ({ signal }) => {
+      const { data } = await api.get<AlunoResumo[]>(`/api/admin/turmas/${turmaIdDesvincular}/alunos`, { signal });
       return data;
     },
-    enabled: !!turmaIdDesvincular,
+    enabled: !!turmaDesvincular,
   });
+  const alunosDaTurma = turmaDesvincular ? consultaAlunos.data : undefined;
+  const alunoDesvincular = alunosDaTurma?.find((a) => String(a.id) === alunoIdDesvincular);
 
   // ── Mutações ──────────────────────────────────────────────────────────────
 
@@ -110,8 +117,7 @@ export default function AdminDashboardPage() {
       });
     },
     onSuccess: () => {
-      const turma = turmas.find((t) => String(t.id) === turmaIdPontos);
-      toast.success(`${qtdPontos} pts adicionados à ${turma?.nome ?? "turma"}`);
+      toast.success(`${qtdPontos} pts adicionados à ${turmaPontos?.nome ?? "turma"}`);
       qc.invalidateQueries({ queryKey: ["admin", "turmas"] });
       setQtdPontos("");
     },
@@ -123,8 +129,7 @@ export default function AdminDashboardPage() {
       await api.post(`/api/admin/turmas/${turmaIdVincular}/alunos/${alunoIdVincular}`);
     },
     onSuccess: () => {
-      const turma = turmas.find((t) => String(t.id) === turmaIdVincular);
-      toast.success(`Aluno #${alunoIdVincular} vinculado à ${turma?.nome ?? "turma"}`);
+      toast.success(`Aluno #${alunoIdVincular} vinculado à ${turmaVincular?.nome ?? "turma"}`);
       qc.invalidateQueries({ queryKey: ["admin", "turmas"] });
       qc.invalidateQueries({ queryKey: ["admin", "turma-alunos"] });
       setAlunoIdVincular("");
@@ -157,7 +162,7 @@ export default function AdminDashboardPage() {
 
   const handleLancarPontos = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!turmaIdPontos || Number(qtdPontos) < 1) {
+    if (!turmaPontos || Number(qtdPontos) < 1) {
       toast.warning("Selecione uma turma e informe uma pontuação positiva."); return;
     }
     lancarPontos.mutate();
@@ -165,7 +170,7 @@ export default function AdminDashboardPage() {
 
   const handleVincular = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!turmaIdVincular || !alunoIdVincular.trim()) {
+    if (!turmaVincular || !alunoIdVincular.trim()) {
       toast.warning("Selecione a turma e informe o ID do aluno."); return;
     }
     vincularAluno.mutate();
@@ -173,7 +178,7 @@ export default function AdminDashboardPage() {
 
   const handleDesvincular = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!turmaIdDesvincular || !alunoIdDesvincular) {
+    if (!turmaDesvincular || !alunoDesvincular) {
       toast.warning("Selecione a turma e o aluno."); return;
     }
     desvincularAluno.mutate();
@@ -200,15 +205,15 @@ export default function AdminDashboardPage() {
           </div>
 
           {/* Lista de turmas existentes */}
-          <section className="space-y-3">
+          <section className="space-y-3 text-sm text-slate-600">
             <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
               Turmas cadastradas
             </h2>
-            {carregandoTurmas ? (
-              <p className="text-sm text-slate-400">Carregando turmas...</p>
-            ) : turmas.length === 0 ? (
-              <p className="text-sm text-slate-400">Nenhuma turma cadastrada ainda.</p>
-            ) : (
+            <EstadoConsulta consulta={consultaTurmas} recurso="as turmas" />
+            {turmas?.length === 0 && !consultaTurmas.isError && (
+              <p role="status" className="text-slate-400">Nenhuma turma cadastrada ainda.</p>
+            )}
+            {!!turmas?.length && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {turmas.map((t) => (
                   <div
@@ -286,12 +291,12 @@ export default function AdminDashboardPage() {
                     <select
                       id="turmaPontos"
                       className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                      value={turmaIdPontos}
+                      value={turmaPontos ? turmaIdPontos : ""}
                       onChange={(e) => setTurmaIdPontos(e.target.value)}
-                      disabled={lancarPontos.isPending}
+                      disabled={!turmas?.length || lancarPontos.isPending}
                     >
                       <option value="">Selecione uma turma</option>
-                      {turmas.map((t) => (
+                      {turmas?.map((t) => (
                         <option key={t.id} value={String(t.id)}>
                           {t.nome} ({t.pontosTotais} pts)
                         </option>
@@ -306,7 +311,7 @@ export default function AdminDashboardPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button type="submit" className="w-full" disabled={lancarPontos.isPending}>
+                  <Button type="submit" className="w-full" disabled={!turmaPontos || lancarPontos.isPending}>
                     {lancarPontos.isPending ? "Lançando..." : "Lançar Pontos"}
                   </Button>
                 </CardFooter>
@@ -322,15 +327,16 @@ export default function AdminDashboardPage() {
               <form onSubmit={handleVincular}>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
-                    <Label>Turma</Label>
+                    <Label htmlFor="turmaVincular">Turma</Label>
                     <select
+                      id="turmaVincular"
                       className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                      value={turmaIdVincular}
+                      value={turmaVincular ? turmaIdVincular : ""}
                       onChange={(e) => setTurmaIdVincular(e.target.value)}
-                      disabled={vincularAluno.isPending}
+                      disabled={!turmas?.length || vincularAluno.isPending}
                     >
                       <option value="">Selecione uma turma</option>
-                      {turmas.map((t) => (
+                      {turmas?.map((t) => (
                         <option key={t.id} value={String(t.id)}>{t.nome}</option>
                       ))}
                     </select>
@@ -344,7 +350,7 @@ export default function AdminDashboardPage() {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button type="submit" className="w-full" disabled={vincularAluno.isPending}>
+                  <Button type="submit" className="w-full" disabled={!turmaVincular || vincularAluno.isPending}>
                     {vincularAluno.isPending ? "Vinculando..." : "Vincular Aluno"}
                   </Button>
                 </CardFooter>
@@ -360,41 +366,47 @@ export default function AdminDashboardPage() {
               <form onSubmit={handleDesvincular}>
                 <CardContent className="space-y-3">
                   <div className="space-y-1">
-                    <Label>Turma</Label>
+                    <Label htmlFor="turmaDesvincular">Turma</Label>
                     <select
+                      id="turmaDesvincular"
                       className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                      value={turmaIdDesvincular}
+                      value={turmaDesvincular ? turmaIdDesvincular : ""}
                       onChange={(e) => { setTurmaIdDesvincular(e.target.value); setAlunoIdDesvincular(""); }}
-                      disabled={desvincularAluno.isPending}
+                      disabled={!turmas?.length || desvincularAluno.isPending}
                     >
                       <option value="">Selecione uma turma</option>
-                      {turmas.map((t) => (
+                      {turmas?.map((t) => (
                         <option key={t.id} value={String(t.id)}>{t.nome}</option>
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-1">
-                    <Label>Aluno</Label>
+                  <div className="space-y-1 text-sm text-slate-600">
+                    <Label htmlFor="alunoDesvincular">Aluno</Label>
                     <select
+                      id="alunoDesvincular"
                       className="w-full h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                      value={alunoIdDesvincular}
+                      value={alunoDesvincular ? alunoIdDesvincular : ""}
                       onChange={(e) => setAlunoIdDesvincular(e.target.value)}
-                      disabled={!turmaIdDesvincular || desvincularAluno.isPending}
+                      disabled={!alunosDaTurma?.length || desvincularAluno.isPending}
                     >
                       <option value="">
-                        {turmaIdDesvincular ? "Selecione um aluno" : "Selecione a turma primeiro"}
+                        {turmaDesvincular ? "Selecione um aluno" : "Selecione a turma primeiro"}
                       </option>
-                      {alunosDaTurma.map((a) => (
+                      {alunosDaTurma?.map((a) => (
                         <option key={a.id} value={String(a.id)}>
                           {a.nome}{a.matricula ? ` — ${a.matricula}` : ""}
                         </option>
                       ))}
                     </select>
+                    {turmaDesvincular && <EstadoConsulta consulta={consultaAlunos} recurso="os alunos da turma" />}
+                    {alunosDaTurma?.length === 0 && !consultaAlunos.isError && (
+                      <p role="status">Esta turma não possui alunos vinculados.</p>
+                    )}
                   </div>
                 </CardContent>
                 <CardFooter>
                   <Button type="submit" variant="destructive" className="w-full"
-                    disabled={desvincularAluno.isPending || !alunoIdDesvincular}>
+                    disabled={desvincularAluno.isPending || !alunoDesvincular}>
                     {desvincularAluno.isPending ? "Desvinculando..." : "Desvincular Aluno"}
                   </Button>
                 </CardFooter>

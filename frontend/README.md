@@ -4,7 +4,21 @@ Frontend do sistema **EDUCRIA** (aprendizagem adaptativa e gamificada para Ensin
 
 ## Como executar
 
-Siga o [guia de inicialização no Codespaces](../INICIAR-CODESPACES.md). O frontend usa caminhos relativos em `/api/` e o servidor Next encaminha as requisições à API interna.
+O frontend usa caminhos relativos em `/api/`. A variável `EDUCRIA_BACKEND_URL` define o destino no servidor Next e aceita HTTP em `127.0.0.1` ou `localhost` com porta explícita. Reinicie o Next após alterar a variável.
+
+No Codespaces, execute o iniciador na raiz do repositório. Ele define o destino do proxy em `http://127.0.0.1:8080`, com precedência sobre valores herdados. [Guia de inicialização no Codespaces](../INICIAR-CODESPACES.md)
+
+```bash
+bash scripts/iniciar.sh
+```
+
+No Windows da faculdade, inicie o backend com `$env:SERVER_PORT = "8085"`. Com o backend rodando, abra outro PowerShell na raiz do repositório para iniciar o Next.js. [Roteiro do backend no Windows](../docs/sqlserver/APRESENTAR_WINDOWS.md)
+
+```powershell
+Set-Location frontend
+$env:EDUCRIA_BACKEND_URL = "http://127.0.0.1:8085"
+npm.cmd run dev
+```
 
 ## Experimentar uma sessão de estudo
 

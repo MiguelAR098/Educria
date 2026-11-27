@@ -26,13 +26,30 @@ function requisicaoPermitida(request: Request) {
     (origem === null || origemPermitida(origem));
 }
 
+function destinoDoBackend() {
+  const configuracao = process.env.EDUCRIA_BACKEND_URL ?? "http://127.0.0.1:8080";
+  if (process.env.EDUCRIA_MODO_APRESENTACAO === "1" && configuracao === "http://api:8080") {
+    return new URL(configuracao);
+  }
+
+  const endereco = /^http:\/\/(?:127\.0\.0\.1|localhost):([0-9]{1,5})\/?$/.exec(configuracao);
+  if (!endereco || endereco[0] !== configuracao) return null;
+
+  const porta = Number(endereco[1]);
+  return porta >= 1 && porta <= 65535 ? new URL(configuracao) : null;
+}
+
 async function encaminhar(request: Request) {
   if (!requisicaoPermitida(request)) {
     return Response.json({ message: "Origem não permitida" }, { status: 403 });
   }
 
   const entrada = new URL(request.url);
-  const destino = new URL("http://127.0.0.1:8085");
+  const destino = destinoDoBackend();
+  if (!destino) {
+    console.error("EDUCRIA_BACKEND_URL inválida. Use HTTP em 127.0.0.1 ou localhost com porta explícita, ou http://api:8080 com EDUCRIA_MODO_APRESENTACAO=1.");
+    return Response.json({ message: "Configuração interna da API EDUCRIA inválida" }, { status: 500 });
+  }
   destino.pathname = entrada.pathname;
   destino.search = entrada.search;
 

@@ -17,6 +17,7 @@ $gerador = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 try { $gerador.GetBytes($segredo) } finally { $gerador.Dispose() }
 $env:EDUCRIA_JWT_SECRET = [Convert]::ToBase64String($segredo)
 mvn -B -f backend/pom.xml -DskipTests package
+$env:SERVER_PORT = "8085"
 java -jar backend/target/educria-backend-1.0.0-SNAPSHOT.jar --spring.profiles.active=dev
 ```
 
@@ -26,7 +27,7 @@ Abra outro terminal PowerShell e carregue as contas. A opção `-ConfiarCertific
 
 ```powershell
 .\scripts\sqlserver\carregar-demo.ps1 -Banco educria_demo_windows -Servidor 'tcp:localhost,1433' -ConfiarCertificadoLocal
-curl.exe -sS -o NUL -w '%{http_code}' http://127.0.0.1:8080/api/aluno/desempenho
+curl.exe -sS -o NUL -w '%{http_code}' http://127.0.0.1:8085/api/aluno/desempenho
 ```
 
 Resultado esperado da consulta anônima é `403`. Use as contas fictícias e o [roteiro HTTP da API](../../backend/README.md) para os fluxos autenticados.

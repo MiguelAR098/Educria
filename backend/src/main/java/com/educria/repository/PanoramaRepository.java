@@ -12,12 +12,32 @@ import java.util.List;
 /** Consultas de histórico de uma turma, restritas aos assuntos de uma matéria. */
 public interface PanoramaRepository extends JpaRepository<RespostaAluno, Long> {
 
+    interface PontosDoAluno {
+        Long getAlunoId();
+        Long getPontos();
+    }
+
+    /** Soma somente pontos individuais registrados no assunto histórico da sessão. */
+    @Query(value = """
+            select r.aluno_id as alunoId, sum(cast(r.pontos_individuais as bigint)) as pontos
+            from dbo.respostas_aluno r
+            join dbo.alunos aluno on aluno.usuario_id = r.aluno_id
+            join dbo.sessoes_estudo sessao on sessao.id = r.sessao_id
+            join dbo.assuntos assunto on assunto.id = sessao.assunto_id
+            where aluno.turma_id = :turmaId and assunto.materia_id = :materiaId
+              and r.pontos_individuais is not null
+            group by r.aluno_id
+            """, nativeQuery = true)
+    List<PontosDoAluno> pontosDaTurma(@Param("turmaId") Long turmaId, @Param("materiaId") Long materiaId);
+
+    /** Usa o assunto da sessão ou o da questão para respostas legadas sem sessão. */
     @Query("""
             select new com.educria.dto.RespostaNivel(r.aluno.id, a.id, a.nome, r.nivelAnterior, r.nivelAtual,
                                                      r.correta, r.respondidoEm)
             from RespostaAluno r
             join r.questao q
-            join q.assunto a
+            left join r.sessao s
+            join Assunto a on a.id = coalesce(s.assunto.id, q.assunto.id)
             where r.aluno.turma.id = :turmaId and a.materia.id = :materiaId
             order by r.respondidoEm, r.id
             """)

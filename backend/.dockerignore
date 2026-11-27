@@ -1,0 +1,14 @@
+**
+!pom.xml
+!src/
+!src/main/
+!src/main/**
+!src/test/
+!src/test/java/
+!src/test/java/**
+**/.env*
+**/*.zip
+**/*.tar
+**/*.pem
+**/*.pfx
+**/*.key

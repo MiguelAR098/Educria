@@ -5,6 +5,7 @@ import { User, UserRole } from "./types";
 interface AuthState {
   token: string | null;
   user: User | null;
+  sessao: number;
   _hasHydrated: boolean;
   setAuth: (token: string, user: User) => void;
   logout: () => void;
@@ -39,6 +40,7 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       token: null,
       user: null,
+      sessao: 0,
       _hasHydrated: false,
       setAuth: (token, user) => {
         const decoded = decodeJwtPayload(token);
@@ -49,10 +51,10 @@ export const useAuthStore = create<AuthState>()(
           matricula: user.matricula,
           id: user.id || decoded?.id,
         };
-        set({ token, user: mergedUser });
+        set(({ sessao }) => ({ token, user: mergedUser, sessao: sessao + 1 }));
       },
       logout: () => {
-        set({ token: null, user: null });
+        set(({ sessao }) => ({ token: null, user: null, sessao: sessao + 1 }));
       },
       setHasHydrated: (state) => {
         set({ _hasHydrated: state });
@@ -61,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "educria-auth-storage",
       storage: createJSONStorage(() => localStorage),
+      partialize: ({ token, user }) => ({ token, user }),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

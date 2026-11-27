@@ -1,0 +1,111 @@
+name: educria-apresentacao
+
+services:
+  db:
+    image: educria-apresentacao-sql:1
+    platform: linux/amd64
+    build: ./scripts/apresentacao/sql
+    labels:
+      br.educria.apresentacao: "1"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+    secrets:
+      - source: sql_senha
+        target: EDUCRIA_SQLSERVER_PASSWORD
+    volumes:
+      - dados:/var/opt/mssql
+    networks: [interna]
+    healthcheck:
+      test: ["CMD", "bash", "/opt/educria/banco.sh", "pronto"]
+      interval: 5s
+      timeout: 55s
+      start_period: 30s
+      retries: 20
+
+  api:
+    image: educria-apresentacao-api:1
+    platform: linux/amd64
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.apresentacao
+    labels:
+      br.educria.apresentacao: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: "8080"
+      SPRING_PROFILES_ACTIVE: dev,apresentacao
+      SPRING_CONFIG_IMPORT: configtree:/run/secrets/
+      EDUCRIA_SQLSERVER_URL: "jdbc:sqlserver://db:1433;databaseName=educria_demo_apresentacao;encrypt=true;trustServerCertificate=true"
+      EDUCRIA_SQLSERVER_USER: sa
+      LOGGING_LEVEL_COM_EDUCRIA: INFO
+    secrets:
+      - source: sql_senha
+        target: EDUCRIA_SQLSERVER_PASSWORD
+      - source: jwt_segredo
+        target: EDUCRIA_JWT_SECRET
+      - source: demo_senha
+        target: educria_demo_senha
+    networks: [interna]
+    healthcheck:
+      test: ["CMD-SHELL", "[ \"$$(curl -s --max-time 4 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/actuator/health)\" = 200 ]"]
+      interval: 5s
+      timeout: 6s
+      start_period: 20s
+      retries: 20
+
+  web:
+    image: educria-apresentacao-web:1
+    platform: linux/amd64
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.apresentacao
+    labels:
+      br.educria.apresentacao: "1"
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      EDUCRIA_BACKEND_URL: http://api:8080
+      EDUCRIA_MODO_APRESENTACAO: "1"
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [interna, entrada]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >
+          (async () => {
+            const origem = 'http://127.0.0.1:3000';
+            const buscar = (rota) => fetch(origem + rota, { redirect: 'manual', signal: AbortSignal.timeout(3500) });
+            const pagina = await buscar('/');
+            const api = await buscar('/api/aluno/desempenho');
+            if (pagina.status !== 200 || ![401, 403].includes(api.status)) process.exit(1);
+            await pagina.body?.cancel();
+            await api.body?.cancel();
+          })().catch(() => process.exit(1))
+      interval: 5s
+      timeout: 9s
+      start_period: 10s
+      retries: 15
+
+networks:
+  interna:
+    internal: true
+  entrada: {}
+
+volumes:
+  dados: {}
+
+secrets:
+  sql_senha:
+    file: ./.educria-apresentacao/sql-senha
+  jwt_segredo:
+    file: ./.educria-apresentacao/jwt-segredo
+  demo_senha:
+    file: ./.educria-apresentacao/demo-senha

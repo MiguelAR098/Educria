@@ -7,3 +7,6 @@ target/
 *.tsbuildinfo
 *.log
 /educria-codespaces.zip
+/.educria-apresentacao/
+/educria-imagens*.tar
+/educria-imagens*.tar.json

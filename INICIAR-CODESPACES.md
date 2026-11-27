@@ -14,7 +14,7 @@ O Dev Container configura Java 21, Maven, Node 22 e Docker-in-Docker. O Compose 
 
 ## Subir a demonstração em um Codespace limpo
 
-Para a apresentação, use o perfil `dev`. Em um Codespace limpo, o iniciador cria a base `educria` dentro do contêiner de desenvolvimento e o Flyway aplica V1 e V2. O callback acrescenta as 80 questões de Matemática.
+Para a apresentação, use o perfil `dev`. Em um Codespace limpo, o iniciador cria a base `educria` dentro do contêiner de desenvolvimento e o Flyway aplica as migrations do SQL Server. O callback carrega as 160 questões de Matemática.
 
 ```bash
 SPRING_PROFILES_ACTIVE=dev bash scripts/iniciar.sh
@@ -26,7 +26,7 @@ O modo padrão usa o comando abaixo. Uma base nova recebe schema e catálogo, co
 bash scripts/iniciar.sh
 ```
 
-O iniciador prepara o arquivo privado `.env`, espera o banco ficar saudável, empacota o backend e inicia o Next.js. Mantenha esse terminal aberto e aguarde `Ready`. O Codespace só precisa encaminhar a porta **3000**. Mantenha a visibilidade **Private**. A API usa internamente 8080 e o SQL Server usa 1433 no loopback do Codespace.
+O iniciador prepara o arquivo privado `.env`, espera o banco ficar saudável, empacota o backend e inicia o Next.js. Ele fixa a API no loopback em `http://127.0.0.1:8080` por argumentos do Spring e usa o mesmo endereço para a verificação de disponibilidade e para `EDUCRIA_BACKEND_URL` no processo do Next.js. Essa configuração prevalece sobre os valores de porta e de destino herdados do ambiente ou do `.env`. Mantenha esse terminal aberto e aguarde `Ready`. O Codespace só precisa encaminhar a porta **3000**. Mantenha a visibilidade **Private**. O SQL Server usa 1433 no loopback do Codespace.
 
 ## Conferir os fluxos
 

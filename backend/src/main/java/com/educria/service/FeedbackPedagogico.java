@@ -43,7 +43,7 @@ final class FeedbackPedagogico {
                                           Long erros, String letraCorreta, String textoCorreto) {
         return new FeedbackResposta(resposta.getRespostaDada(), resposta.isCorreta(), texto,
                 resposta.getNivelAnterior(), resposta.getNivelAtual(), resposta.isReaprender(),
-                tipo, erros, letraCorreta, textoCorreto);
+                tipo, erros, letraCorreta, textoCorreto, resposta.getPontosIndividuais());
     }
 
     private record Dicas(String inicial, String aprimorada) {}
