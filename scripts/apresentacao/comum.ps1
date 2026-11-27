@@ -149,7 +149,11 @@ function Confirmar-RecursoSegredos([string]$Caminho, [switch]$Pasta) {
 
 function Confirmar-AclSegredos([string]$Caminho, [switch]$Pasta) {
     Confirmar-RecursoSegredos $Caminho -Pasta:$Pasta
-    $acl = Get-Acl -LiteralPath $Caminho
+    $acl = if ($Pasta) {
+    [IO.Directory]::GetAccessControl($Caminho)
+    } else {
+    [IO.File]::GetAccessControl($Caminho)
+    }
     $permitidas = @(Obter-IdentidadesSegredos | ForEach-Object Value)
     $regras = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
     if (($Pasta -and !$acl.AreAccessRulesProtected) -or !$regras -or

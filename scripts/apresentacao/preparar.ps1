@@ -9,6 +9,28 @@
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'comum.ps1')
 
+function Get-FileHash {
+    param(
+        [string]$LiteralPath,
+        [ValidateSet('SHA256')][string]$Algorithm
+    )
+
+    $fluxo = [IO.File]::OpenRead($LiteralPath)
+    $sha = [Security.Cryptography.SHA256]::Create()
+
+    try {
+        [pscustomobject]@{
+            Hash = [BitConverter]::ToString(
+                $sha.ComputeHash($fluxo)
+            ).Replace('-', '')
+        }
+    }
+    finally {
+        $sha.Dispose()
+        $fluxo.Dispose()
+    }
+}
+
 function Confirmar-Espaco([string]$Caminho, [long]$Minimo) {
     $unidade = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($Caminho))
     if (!$unidade.IsReady -or $unidade.AvailableFreeSpace -lt $Minimo) {
